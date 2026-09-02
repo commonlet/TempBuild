@@ -1,0 +1,104 @@
+name: Windows Disk Information Viewer
+
+on:
+  workflow_dispatch:
+
+jobs:
+  disk-info:
+    runs-on: windows-2025-vs2026
+    
+    steps:
+      - name: View complete disk information using PowerShell
+        shell: pwsh
+        run: |
+          # ==================== 1. System Basic Information ====================
+          Write-Host "========================================" -ForegroundColor Cyan
+          Write-Host "       System Basic Information" -ForegroundColor Cyan
+          Write-Host "========================================" -ForegroundColor Cyan
+          Write-Host "Operating System: $((Get-CimInstance Win32_OperatingSystem).Caption)"
+          Write-Host "OS Version: $((Get-CimInstance Win32_OperatingSystem).Version)"
+          Write-Host "Computer Name: $env:COMPUTERNAME"
+          Write-Host "Current User: $env:USERNAME"
+          Write-Host ""
+
+          # ==================== 2. All Disk Partitions List ====================
+          Write-Host "========================================" -ForegroundColor Cyan
+          Write-Host "       All Disk Partitions List" -ForegroundColor Cyan
+          Write-Host "========================================" -ForegroundColor Cyan
+          Get-PSDrive -PSProvider FileSystem | Format-Table -AutoSize
+          Write-Host ""
+
+          # ==================== 3. Detailed Partition Space Information ====================
+          Write-Host "========================================" -ForegroundColor Cyan
+          Write-Host "       Detailed Partition Space Info" -ForegroundColor Cyan
+          Write-Host "========================================" -ForegroundColor Cyan
+          Get-CimInstance -ClassName Win32_LogicalDisk | ForEach-Object {
+              $sizeGB = [math]::Round($_.Size / 1GB, 2)
+              $freeGB = [math]::Round($_.FreeSpace / 1GB, 2)
+              $usedGB = [math]::Round(($_.Size - $_.FreeSpace) / 1GB, 2)
+              $percentFree = if ($_.Size -gt 0) { [math]::Round(($_.FreeSpace / $_.Size) * 100, 2) } else { 0 }
+              [PSCustomObject]@{
+                  Drive         = $_.DeviceID
+                  VolumeLabel   = $_.VolumeName
+                  Total_GB      = $sizeGB
+                  Used_GB       = $usedGB
+                  Free_GB       = $freeGB
+                  FreePercent   = "$percentFree%"
+                  FileSystem    = $_.FileSystem
+              }
+          } | Format-Table -AutoSize
+          Write-Host ""
+
+          # ==================== 4. C Drive Root Large Folders Analysis (>1GB) ====================
+          Write-Host "========================================" -ForegroundColor Cyan
+          Write-Host "       C Drive Root Large Folders (>1GB)" -ForegroundColor Cyan
+          Write-Host "========================================" -ForegroundColor Cyan
+          $largeFolders = Get-ChildItem -Path C:\ -Directory -ErrorAction SilentlyContinue | ForEach-Object {
+              $size = (Get-ChildItem -Path $_.FullName -Recurse -File -ErrorAction SilentlyContinue | Measure-Object -Property Length -Sum).Sum
+              if ($size -gt 1GB) {
+                  [PSCustomObject]@{
+                      FolderName    = $_.Name
+                      Size_GB       = [math]::Round($size / 1GB, 2)
+                      FullPath      = $_.FullName
+                  }
+              }
+          } | Sort-Object -Property Size_GB -Descending
+          
+          if ($largeFolders) {
+              $largeFolders | Format-Table -AutoSize
+          } else {
+              Write-Host "No folders larger than 1GB found." -ForegroundColor Yellow
+          }
+          Write-Host ""
+
+          # ==================== 5. Top-Level Folder List for Each Disk Root ====================
+          Write-Host "========================================" -ForegroundColor Cyan
+          Write-Host "       Top-Level Folders per Disk Root" -ForegroundColor Cyan
+          Write-Host "========================================" -ForegroundColor Cyan
+          $drives = Get-PSDrive -PSProvider FileSystem | Where-Object { $_.Root -ne $null }
+          foreach ($drive in $drives) {
+              $rootPath = $drive.Root
+              Write-Host "`n--- $rootPath ---" -ForegroundColor Green
+              Get-ChildItem -Path $rootPath -Directory -ErrorAction SilentlyContinue | 
+                  Select-Object Name, @{N="Size(GB)";E={
+                      $s = (Get-ChildItem -Path $_.FullName -Recurse -File -ErrorAction SilentlyContinue | Measure-Object -Property Length -Sum).Sum
+                      if ($s) { [math]::Round($s/1GB, 2) } else { 0 }
+                  }} | Sort-Object -Property Name | Format-Table -AutoSize
+          }
+          Write-Host ""
+
+          # ==================== 6. Disk Space Summary ====================
+          Write-Host "========================================" -ForegroundColor Cyan
+          Write-Host "       Disk Space Summary" -ForegroundColor Cyan
+          Write-Host "========================================" -ForegroundColor Cyan
+          $totalSize = 0
+          $totalFree = 0
+          Get-CimInstance -ClassName Win32_LogicalDisk | ForEach-Object {
+              if ($_.Size -gt 0) {
+                  $totalSize += $_.Size
+                  $totalFree += $_.FreeSpace
+              }
+          }
+          Write-Host "Total disk capacity: $([math]::Round($totalSize/1GB, 2)) GB"
+          Write-Host "Total free space: $([math]::Round($totalFree/1GB, 2)) GB"
+          Write-Host "Total disk usage: $([math]::Round((($totalSize - $totalFree)/$totalSize)*100, 2))%"
