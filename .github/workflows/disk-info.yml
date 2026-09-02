@@ -1,102 +1,153 @@
-# .github/workflows/system-info.yml
-name: Windows System & Disk Performance Viewer
+# .github/workflows/disk-benchmark.yml
+name: Windows Real Disk Performance Benchmark
 
 on:
   workflow_dispatch:
 
 jobs:
-  system-info:
+  disk-benchmark:
     runs-on: windows-2025-vs2026
     
     steps:
-      # ==================== 1. 系统信息 ====================
-      - name: Get complete system information using Get-ComputerInfo
+      - name: Real disk read/write performance test
         shell: pwsh
         run: |
           Write-Host "========================================" -ForegroundColor Cyan
-          Write-Host "       WINDOWS SYSTEM INFORMATION" -ForegroundColor Cyan
+          Write-Host "    REAL DISK READ/WRITE PERFORMANCE" -ForegroundColor Cyan
           Write-Host "========================================" -ForegroundColor Cyan
           Write-Host ""
           
-          Get-ComputerInfo | Format-List
-
-      # ==================== 2. 磁盘性能测试 ====================
-      - name: Benchmark disk performance using PowerShell
-        shell: pwsh
-        run: |
-          Write-Host "========================================" -ForegroundColor Cyan
-          Write-Host "       DISK PERFORMANCE BENCHMARK" -ForegroundColor Cyan
-          Write-Host "========================================" -ForegroundColor Cyan
-          
-          function Test-DiskSpeed {
+          function Test-RealDiskSpeed {
               param (
                   [string]$DriveLetter,
-                  [int]$FileSizeMB = 2048,  # 测试文件大小，默认 2GB
-                  [int]$Iterations = 3
+                  [int]$FileSizeMB = 2048,  # 测试文件大小 2GB
+                  [int]$BufferSizeKB = 64   # 缓冲区 64KB，模拟真实应用
               )
               
               $drivePath = "${DriveLetter}:\"
-              $testFile = Join-Path $drivePath "speed_test_$(Get-Date -Format 'yyyyMMdd_HHmmss').tmp"
+              $testFile = Join-Path $drivePath "real_speed_test_$(Get-Date -Format 'yyyyMMdd_HHmmss').tmp"
               
-              Write-Host "`n--- Testing $drivePath ---" -ForegroundColor Green
-              Write-Host "Test file size: $FileSizeMB MB"
+              Write-Host "========================================" -ForegroundColor Yellow
+              Write-Host "Testing $drivePath" -ForegroundColor Yellow
+              Write-Host "========================================" -ForegroundColor Yellow
+              Write-Host "File size: $FileSizeMB MB"
+              Write-Host "Buffer: $BufferSizeKB KB"
+              Write-Host ""
               
-              # 准备测试数据（1MB 缓冲区）
-              $bufferSize = 1MB
-              $buffer = [byte[]]::new($bufferSize)
-              $rng = [System.Security.Cryptography.RNGCryptoServiceProvider]::Create()
-              $rng.GetBytes($buffer)
+              # ===== 1. 清除缓存 =====
+              Write-Host "Clearing system caches..." -ForegroundColor Gray
+              # 清理内存中的文件缓存
+              [System.GC]::Collect()
+              [System.GC]::WaitForPendingFinalizers()
               
-              # ===== 写入测试 =====
+              # 使用 Windows API 清除文件系统缓存（需要管理员权限，但 CI 环境默认有）
+              $kernel32 = Add-Type -MemberDefinition @'
+                  [DllImport("kernel32.dll")]
+                  public static extern bool SetSystemFileCacheSize(
+                      long MinimumFileCacheSize,
+                      long MaximumFileCacheSize,
+                      uint Flags
+                  );
+'@ -Name "Kernel32" -Namespace "Win32" -PassThru
+              # 0x00000001 = FILE_CACHE_MAX_HARD_ENABLE, 0x00000002 = FILE_CACHE_MIN_HARD_ENABLE
+              $kernel32::SetSystemFileCacheSize(-1, -1, 0) | Out-Null
+              
+              # ===== 2. 写入测试（强制落盘） =====
+              Write-Host "`n--- WRITE TEST ---" -ForegroundColor Green
+              
               try {
-                  $fs = [System.IO.File]::OpenWrite($testFile)
-                  $fs.SetLength($FileSizeMB * 1MB)
+                  # 使用 FileStream 并开启 FileOptions.WriteThrough 强制绕过缓存
+                  $bufferSize = $BufferSizeKB * 1024
+                  $buffer = [byte[]]::new($bufferSize)
+                  $rng = [System.Security.Cryptography.RNGCryptoServiceProvider]::Create()
+                  $rng.GetBytes($buffer)
+                  
+                  $fs = New-Object System.IO.FileStream(
+                      $testFile,
+                      [System.IO.FileMode]::Create,
+                      [System.IO.FileAccess]::Write,
+                      [System.IO.FileShare]::None,
+                      $bufferSize,
+                      [System.IO.FileOptions]::WriteThrough
+                  )
+                  
                   $sw = [System.Diagnostics.Stopwatch]::StartNew()
                   
+                  $totalBytes = $FileSizeMB * 1MB
                   $written = 0
-                  while ($written -lt $FileSizeMB * 1MB) {
-                      $fs.Write($buffer, 0, $bufferSize)
-                      $written += $bufferSize
+                  while ($written -lt $totalBytes) {
+                      $bytesToWrite = [Math]::Min($bufferSize, $totalBytes - $written)
+                      $fs.Write($buffer, 0, $bytesToWrite)
+                      $written += $bytesToWrite
                   }
-                  $fs.Flush()
+                  
+                  # 显式刷新流（WriteThrough 下其实不需要，但保留以确保）
+                  $fs.Flush($true)
                   $sw.Stop()
                   $fs.Close()
                   
                   $writeSpeed = [math]::Round($FileSizeMB / $sw.Elapsed.TotalSeconds, 2)
-                  Write-Host "Write Speed: $writeSpeed MB/s ($([math]::Round($FileSizeMB / 1GB, 2)) GB in $($sw.Elapsed.TotalSeconds.ToString('F2'))s)"
+                  Write-Host "Write Speed: $writeSpeed MB/s" -ForegroundColor Green
+                  Write-Host "Total time: $($sw.Elapsed.TotalSeconds.ToString('F2')) seconds"
               } catch {
                   Write-Host "Write test failed: $_" -ForegroundColor Red
               }
               
-              # ===== 读取测试 =====
+              # 清除缓存，为读取测试做准备
+              [System.GC]::Collect()
+              [System.GC]::WaitForPendingFinalizers()
+              
+              # ===== 3. 读取测试（绕过缓存） =====
               if (Test-Path $testFile) {
+                  Write-Host "`n--- READ TEST ---" -ForegroundColor Green
+                  
                   try {
-                      $fs = [System.IO.File]::OpenRead($testFile)
+                      # 使用 FileOptions.SequentialScan 优化顺序读取
+                      $fs = New-Object System.IO.FileStream(
+                          $testFile,
+                          [System.IO.FileMode]::Open,
+                          [System.IO.FileAccess]::Read,
+                          [System.IO.FileShare]::Read,
+                          $bufferSize,
+                          [System.IO.FileOptions]::SequentialScan
+                      )
+                      
                       $sw = [System.Diagnostics.Stopwatch]::StartNew()
                       
-                      $read = 0
                       $readBuffer = [byte[]]::new($bufferSize)
-                      while ($read -lt $FileSizeMB * 1MB) {
+                      $totalBytes = $FileSizeMB * 1MB
+                      $read = 0
+                      while ($read -lt $totalBytes) {
                           $bytesRead = $fs.Read($readBuffer, 0, $bufferSize)
                           if ($bytesRead -eq 0) { break }
                           $read += $bytesRead
                       }
+                      
                       $sw.Stop()
                       $fs.Close()
                       
                       $readSpeed = [math]::Round($FileSizeMB / $sw.Elapsed.TotalSeconds, 2)
-                      Write-Host "Read Speed: $readSpeed MB/s ($([math]::Round($FileSizeMB / 1GB, 2)) GB in $($sw.Elapsed.TotalSeconds.ToString('F2'))s)"
+                      Write-Host "Read Speed: $readSpeed MB/s" -ForegroundColor Green
+                      Write-Host "Total time: $($sw.Elapsed.TotalSeconds.ToString('F2')) seconds"
                   } catch {
                       Write-Host "Read test failed: $_" -ForegroundColor Red
                   }
                   
                   # 清理测试文件
                   Remove-Item $testFile -Force -ErrorAction SilentlyContinue
+                  Write-Host ""
+                  Write-Host "Test file cleaned up." -ForegroundColor Gray
               }
+              
+              Write-Host ""
           }
           
           # 测试 C 盘
-          Test-DiskSpeed -DriveLetter "C" -FileSizeMB 2048
+          Test-RealDiskSpeed -DriveLetter "C" -FileSizeMB 2048 -BufferSizeKB 64
           
           # 测试 D 盘
-          Test-DiskSpeed -DriveLetter "D" -FileSizeMB 2048
+          Test-RealDiskSpeed -DriveLetter "D" -FileSizeMB 2048 -BufferSizeKB 64
+          
+          Write-Host "========================================" -ForegroundColor Cyan
+          Write-Host "       BENCHMARK COMPLETE" -ForegroundColor Cyan
+          Write-Host "========================================" -ForegroundColor Cyan
