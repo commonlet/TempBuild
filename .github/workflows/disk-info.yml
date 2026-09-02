@@ -15,7 +15,7 @@ jobs:
     
     steps:
       - name: Setup tmate debug session
-        uses: mxschmitt/action-tmate@a8c2cdd7f9e4d2a8c7b3e5f1d9c4a8b2c3d4e5f6  # 替换为实际完整的 commit SHA
+        uses: mxschmitt/action-tmate@3bbcb9c1150fbb652ce2b0d2f7c2e69804e43d10
         with:
           limit-access-to-actor: true
           timeout-minutes: 60
