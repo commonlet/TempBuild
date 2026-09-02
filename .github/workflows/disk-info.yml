@@ -9,13 +9,19 @@ jobs:
     runs-on: windows-2025-vs2026
     
     steps:
-      - name: Get complete system information using Get-ComputerInfo
+      # ... 你原有的 Get-ComputerInfo 步骤 ...
+
+      - name: Benchmark disk performance
         shell: pwsh
         run: |
           Write-Host "========================================" -ForegroundColor Cyan
-          Write-Host "       WINDOWS SYSTEM INFORMATION" -ForegroundColor Cyan
+          Write-Host "       DISK PERFORMANCE BENCHMARK" -ForegroundColor Cyan
           Write-Host "========================================" -ForegroundColor Cyan
-          Write-Host ""
           
-          # Get all computer info and display as formatted list
-          Get-ComputerInfo | Format-List
+          Write-Host "`n--- Testing C: drive ---" -ForegroundColor Green
+          winsat disk -seq -read -drive c
+          winsat disk -seq -write -drive c
+          
+          Write-Host "`n--- Testing D: drive ---" -ForegroundColor Green
+          winsat disk -seq -read -drive d
+          winsat disk -seq -write -drive d
