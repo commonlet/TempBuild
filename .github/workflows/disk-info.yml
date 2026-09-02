@@ -15,7 +15,7 @@ jobs:
     
     steps:
       - name: Setup tmate debug session
-        uses: mxschmitt/action-tmate@3bbcb9c1150fbb652ce2b0d2f7c2e69804e43d10
+        uses: mxschmitt/action-tmate@35b54afac29c97fb54faba5b513f8fbd1882f113
         with:
           limit-access-to-actor: true
           timeout-minutes: 60
