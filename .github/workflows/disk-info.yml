@@ -38,7 +38,6 @@ jobs:
               [System.GC]::Collect()
               [System.GC]::WaitForPendingFinalizers()
               
-              # 使用 Add-Type 定义 Windows API（使用单行字符串拼接避免 YAML 解析问题）
               $kernel32 = Add-Type -MemberDefinition "
                   [DllImport(`"kernel32.dll`")]
                   public static extern bool SetSystemFileCacheSize(
@@ -50,6 +49,7 @@ jobs:
               
               $kernel32::SetSystemFileCacheSize(-1, -1, 0) | Out-Null
               
+              # ===== 写入测试 =====
               Write-Host "`n--- WRITE TEST ---" -ForegroundColor Green
               
               try {
@@ -72,7 +72,11 @@ jobs:
                   $totalBytes = $FileSizeMB * 1MB
                   $written = 0
                   while ($written -lt $totalBytes) {
-                      $bytesToWrite = [Math]::Min($bufferSize, $totalBytes - $written)
+                      # 直接使用剩余字节数，不需要 Min，因为最后一次写入可能小于 bufferSize，但不会溢出
+                      $bytesToWrite = $bufferSize
+                      if ($written + $bytesToWrite -gt $totalBytes) {
+                          $bytesToWrite = $totalBytes - $written
+                      }
                       $fs.Write($buffer, 0, $bytesToWrite)
                       $written += $bytesToWrite
                   }
@@ -91,6 +95,7 @@ jobs:
               [System.GC]::Collect()
               [System.GC]::WaitForPendingFinalizers()
               
+              # ===== 读取测试 =====
               if (Test-Path $testFile) {
                   Write-Host "`n--- READ TEST ---" -ForegroundColor Green
                   
