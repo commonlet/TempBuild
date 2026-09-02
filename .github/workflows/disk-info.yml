@@ -20,4 +20,5 @@ jobs:
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.debug_enabled }}
         with:
           limit-access-to-actor: true
+          detached: true
         timeout-minutes: 60
