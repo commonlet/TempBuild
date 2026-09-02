@@ -1,146 +1,31 @@
-# .github/workflows/disk-benchmark.yml
-name: Windows Real Disk Performance Benchmark
+# .github/workflows/debug.yml
+name: Interactive Debug Session
 
 on:
   workflow_dispatch:
+    inputs:
+      enable_debug:
+        description: 'Enable tmate debug session'
+        type: boolean
+        default: true
 
 jobs:
-  disk-benchmark:
+  debug:
     runs-on: windows-2025-vs2026
     
     steps:
-      - name: Real disk read/write performance test
-        shell: pwsh
-        run: |
-          Write-Host "========================================" -ForegroundColor Cyan
-          Write-Host "    REAL DISK READ/WRITE PERFORMANCE" -ForegroundColor Cyan
-          Write-Host "========================================" -ForegroundColor Cyan
-          Write-Host ""
-          
-          function Test-RealDiskSpeed {
-              param (
-                  [string]$DriveLetter,
-                  [int]$FileSizeMB = 2048,
-                  [int]$BufferSizeKB = 64
-              )
-              
-              $drivePath = "${DriveLetter}:\"
-              $testFile = Join-Path $drivePath "real_speed_test_$(Get-Date -Format 'yyyyMMdd_HHmmss').tmp"
-              
-              Write-Host "========================================" -ForegroundColor Yellow
-              Write-Host "Testing $drivePath" -ForegroundColor Yellow
-              Write-Host "========================================" -ForegroundColor Yellow
-              Write-Host "File size: $FileSizeMB MB"
-              Write-Host "Buffer: $BufferSizeKB KB"
-              Write-Host ""
-              
-              Write-Host "Clearing system caches..." -ForegroundColor Gray
-              [System.GC]::Collect()
-              [System.GC]::WaitForPendingFinalizers()
-              
-              $kernel32 = Add-Type -MemberDefinition "
-                  [DllImport(`"kernel32.dll`")]
-                  public static extern bool SetSystemFileCacheSize(
-                      long MinimumFileCacheSize,
-                      long MaximumFileCacheSize,
-                      uint Flags
-                  );
-              " -Name "Kernel32" -Namespace "Win32" -PassThru
-              
-              $kernel32::SetSystemFileCacheSize(-1, -1, 0) | Out-Null
-              
-              # ===== 写入测试 =====
-              Write-Host "`n--- WRITE TEST ---" -ForegroundColor Green
-              
-              try {
-                  $bufferSize = $BufferSizeKB * 1024
-                  $buffer = [byte[]]::new($bufferSize)
-                  $rng = [System.Security.Cryptography.RNGCryptoServiceProvider]::Create()
-                  $rng.GetBytes($buffer)
-                  
-                  $fs = New-Object System.IO.FileStream(
-                      $testFile,
-                      [System.IO.FileMode]::Create,
-                      [System.IO.FileAccess]::Write,
-                      [System.IO.FileShare]::None,
-                      $bufferSize,
-                      [System.IO.FileOptions]::WriteThrough
-                  )
-                  
-                  $sw = [System.Diagnostics.Stopwatch]::StartNew()
-                  
-                  $totalBytes = $FileSizeMB * 1MB
-                  $written = 0
-                  while ($written -lt $totalBytes) {
-                      # 直接使用剩余字节数，不需要 Min，因为最后一次写入可能小于 bufferSize，但不会溢出
-                      $bytesToWrite = $bufferSize
-                      if ($written + $bytesToWrite -gt $totalBytes) {
-                          $bytesToWrite = $totalBytes - $written
-                      }
-                      $fs.Write($buffer, 0, $bytesToWrite)
-                      $written += $bytesToWrite
-                  }
-                  
-                  $fs.Flush($true)
-                  $sw.Stop()
-                  $fs.Close()
-                  
-                  $writeSpeed = [math]::Round($FileSizeMB / $sw.Elapsed.TotalSeconds, 2)
-                  Write-Host "Write Speed: $writeSpeed MB/s" -ForegroundColor Green
-                  Write-Host "Total time: $($sw.Elapsed.TotalSeconds.ToString('F2')) seconds"
-              } catch {
-                  Write-Host "Write test failed: $_" -ForegroundColor Red
-              }
-              
-              [System.GC]::Collect()
-              [System.GC]::WaitForPendingFinalizers()
-              
-              # ===== 读取测试 =====
-              if (Test-Path $testFile) {
-                  Write-Host "`n--- READ TEST ---" -ForegroundColor Green
-                  
-                  try {
-                      $fs = New-Object System.IO.FileStream(
-                          $testFile,
-                          [System.IO.FileMode]::Open,
-                          [System.IO.FileAccess]::Read,
-                          [System.IO.FileShare]::Read,
-                          $bufferSize,
-                          [System.IO.FileOptions]::SequentialScan
-                      )
-                      
-                      $sw = [System.Diagnostics.Stopwatch]::StartNew()
-                      
-                      $readBuffer = [byte[]]::new($bufferSize)
-                      $totalBytes = $FileSizeMB * 1MB
-                      $read = 0
-                      while ($read -lt $totalBytes) {
-                          $bytesRead = $fs.Read($readBuffer, 0, $bufferSize)
-                          if ($bytesRead -eq 0) { break }
-                          $read += $bytesRead
-                      }
-                      
-                      $sw.Stop()
-                      $fs.Close()
-                      
-                      $readSpeed = [math]::Round($FileSizeMB / $sw.Elapsed.TotalSeconds, 2)
-                      Write-Host "Read Speed: $readSpeed MB/s" -ForegroundColor Green
-                      Write-Host "Total time: $($sw.Elapsed.TotalSeconds.ToString('F2')) seconds"
-                  } catch {
-                      Write-Host "Read test failed: $_" -ForegroundColor Red
-                  }
-                  
-                  Remove-Item $testFile -Force -ErrorAction SilentlyContinue
-                  Write-Host ""
-                  Write-Host "Test file cleaned up." -ForegroundColor Gray
-              }
-              
-              Write-Host ""
-          }
-          
-          Test-RealDiskSpeed -DriveLetter "C" -FileSizeMB 2048 -BufferSizeKB 64
-          Test-RealDiskSpeed -DriveLetter "D" -FileSizeMB 2048 -BufferSizeKB 64
-          
-          Write-Host "========================================" -ForegroundColor Cyan
-          Write-Host "       BENCHMARK COMPLETE" -ForegroundColor Cyan
-          Write-Host "========================================" -ForegroundColor Cyan
+      # 可选：如果你想在调试前先拉取私有仓库代码，可以启用这个步骤
+      # - name: Checkout private repository
+      #   uses: actions/checkout@v4
+      #   with:
+      #     repository: your-username/your-private-repo
+      #     token: ${{ secrets.PRIVATE_REPO_READ_TOKEN }}
+      #     path: D:\source
+
+      - name: Setup tmate debug session
+        uses: mxschmitt/action-tmate@v3
+        with:
+          # 限制只有触发此次工作流的用户才能连接
+          limit-access-to-actor: true
+          # 不限制连接超时，默认无限制
+          timeout-minutes: 60
