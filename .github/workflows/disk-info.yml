@@ -14,18 +14,8 @@ jobs:
     runs-on: windows-2025-vs2026
     
     steps:
-      # 可选：如果你想在调试前先拉取私有仓库代码，可以启用这个步骤
-      # - name: Checkout private repository
-      #   uses: actions/checkout@v4
-      #   with:
-      #     repository: your-username/your-private-repo
-      #     token: ${{ secrets.PRIVATE_REPO_READ_TOKEN }}
-      #     path: D:\source
-
       - name: Setup tmate debug session
-        uses: mxschmitt/action-tmate@v3
+        uses: mxschmitt/action-tmate@a8c2cdd7f9e4d2a8c7b3e5f1d9c4a8b2c3d4e5f6  # 替换为实际完整的 commit SHA
         with:
-          # 限制只有触发此次工作流的用户才能连接
           limit-access-to-actor: true
-          # 不限制连接超时，默认无限制
           timeout-minutes: 60
