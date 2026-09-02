@@ -1,5 +1,5 @@
 # .github/workflows/system-info.yml
-name: Windows System Information Viewer
+name: Windows System & Disk Performance Viewer
 
 on:
   workflow_dispatch:
@@ -9,19 +9,94 @@ jobs:
     runs-on: windows-2025-vs2026
     
     steps:
-      # ... 你原有的 Get-ComputerInfo 步骤 ...
+      # ==================== 1. 系统信息 ====================
+      - name: Get complete system information using Get-ComputerInfo
+        shell: pwsh
+        run: |
+          Write-Host "========================================" -ForegroundColor Cyan
+          Write-Host "       WINDOWS SYSTEM INFORMATION" -ForegroundColor Cyan
+          Write-Host "========================================" -ForegroundColor Cyan
+          Write-Host ""
+          
+          Get-ComputerInfo | Format-List
 
-      - name: Benchmark disk performance
+      # ==================== 2. 磁盘性能测试 ====================
+      - name: Benchmark disk performance using PowerShell
         shell: pwsh
         run: |
           Write-Host "========================================" -ForegroundColor Cyan
           Write-Host "       DISK PERFORMANCE BENCHMARK" -ForegroundColor Cyan
           Write-Host "========================================" -ForegroundColor Cyan
           
-          Write-Host "`n--- Testing C: drive ---" -ForegroundColor Green
-          winsat disk -seq -read -drive c
-          winsat disk -seq -write -drive c
+          function Test-DiskSpeed {
+              param (
+                  [string]$DriveLetter,
+                  [int]$FileSizeMB = 2048,  # 测试文件大小，默认 2GB
+                  [int]$Iterations = 3
+              )
+              
+              $drivePath = "${DriveLetter}:\"
+              $testFile = Join-Path $drivePath "speed_test_$(Get-Date -Format 'yyyyMMdd_HHmmss').tmp"
+              
+              Write-Host "`n--- Testing $drivePath ---" -ForegroundColor Green
+              Write-Host "Test file size: $FileSizeMB MB"
+              
+              # 准备测试数据（1MB 缓冲区）
+              $bufferSize = 1MB
+              $buffer = [byte[]]::new($bufferSize)
+              $rng = [System.Security.Cryptography.RNGCryptoServiceProvider]::Create()
+              $rng.GetBytes($buffer)
+              
+              # ===== 写入测试 =====
+              try {
+                  $fs = [System.IO.File]::OpenWrite($testFile)
+                  $fs.SetLength($FileSizeMB * 1MB)
+                  $sw = [System.Diagnostics.Stopwatch]::StartNew()
+                  
+                  $written = 0
+                  while ($written -lt $FileSizeMB * 1MB) {
+                      $fs.Write($buffer, 0, $bufferSize)
+                      $written += $bufferSize
+                  }
+                  $fs.Flush()
+                  $sw.Stop()
+                  $fs.Close()
+                  
+                  $writeSpeed = [math]::Round($FileSizeMB / $sw.Elapsed.TotalSeconds, 2)
+                  Write-Host "Write Speed: $writeSpeed MB/s ($([math]::Round($FileSizeMB / 1GB, 2)) GB in $($sw.Elapsed.TotalSeconds.ToString('F2'))s)"
+              } catch {
+                  Write-Host "Write test failed: $_" -ForegroundColor Red
+              }
+              
+              # ===== 读取测试 =====
+              if (Test-Path $testFile) {
+                  try {
+                      $fs = [System.IO.File]::OpenRead($testFile)
+                      $sw = [System.Diagnostics.Stopwatch]::StartNew()
+                      
+                      $read = 0
+                      $readBuffer = [byte[]]::new($bufferSize)
+                      while ($read -lt $FileSizeMB * 1MB) {
+                          $bytesRead = $fs.Read($readBuffer, 0, $bufferSize)
+                          if ($bytesRead -eq 0) { break }
+                          $read += $bytesRead
+                      }
+                      $sw.Stop()
+                      $fs.Close()
+                      
+                      $readSpeed = [math]::Round($FileSizeMB / $sw.Elapsed.TotalSeconds, 2)
+                      Write-Host "Read Speed: $readSpeed MB/s ($([math]::Round($FileSizeMB / 1GB, 2)) GB in $($sw.Elapsed.TotalSeconds.ToString('F2'))s)"
+                  } catch {
+                      Write-Host "Read test failed: $_" -ForegroundColor Red
+                  }
+                  
+                  # 清理测试文件
+                  Remove-Item $testFile -Force -ErrorAction SilentlyContinue
+              }
+          }
           
-          Write-Host "`n--- Testing D: drive ---" -ForegroundColor Green
-          winsat disk -seq -read -drive d
-          winsat disk -seq -write -drive d
+          # 测试 C 盘
+          Test-DiskSpeed -DriveLetter "C" -FileSizeMB 2048
+          
+          # 测试 D 盘
+          Test-DiskSpeed -DriveLetter "D" -FileSizeMB 2048
