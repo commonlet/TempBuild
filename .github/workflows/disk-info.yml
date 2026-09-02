@@ -4,9 +4,10 @@ name: Interactive Debug Session
 on:
   workflow_dispatch:
     inputs:
-      enable_debug:
-        description: 'Enable tmate debug session'
+      debug_enabled:
         type: boolean
+        description: 'Run with tmate debugging enabled'
+        required: false
         default: true
 
 jobs:
@@ -14,7 +15,9 @@ jobs:
     runs-on: windows-2025-vs2026
     
     steps:
-      - name: Setup tmate debug session
+      - name: Setup tmate session
         uses: mxschmitt/action-tmate@35b54afac29c97fb54faba5b513f8fbd1882f113
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.debug_enabled }}
         with:
           limit-access-to-actor: true
+        timeout-minutes: 60
