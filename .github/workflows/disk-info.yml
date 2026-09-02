@@ -20,8 +20,8 @@ jobs:
           function Test-RealDiskSpeed {
               param (
                   [string]$DriveLetter,
-                  [int]$FileSizeMB = 2048,  # 测试文件大小 2GB
-                  [int]$BufferSizeKB = 64   # 缓冲区 64KB，模拟真实应用
+                  [int]$FileSizeMB = 2048,
+                  [int]$BufferSizeKB = 64
               )
               
               $drivePath = "${DriveLetter}:\"
@@ -34,29 +34,25 @@ jobs:
               Write-Host "Buffer: $BufferSizeKB KB"
               Write-Host ""
               
-              # ===== 1. 清除缓存 =====
               Write-Host "Clearing system caches..." -ForegroundColor Gray
-              # 清理内存中的文件缓存
               [System.GC]::Collect()
               [System.GC]::WaitForPendingFinalizers()
               
-              # 使用 Windows API 清除文件系统缓存（需要管理员权限，但 CI 环境默认有）
-              $kernel32 = Add-Type -MemberDefinition @'
-                  [DllImport("kernel32.dll")]
+              # 使用 Add-Type 定义 Windows API（使用单行字符串拼接避免 YAML 解析问题）
+              $kernel32 = Add-Type -MemberDefinition "
+                  [DllImport(`"kernel32.dll`")]
                   public static extern bool SetSystemFileCacheSize(
                       long MinimumFileCacheSize,
                       long MaximumFileCacheSize,
                       uint Flags
                   );
-'@ -Name "Kernel32" -Namespace "Win32" -PassThru
-              # 0x00000001 = FILE_CACHE_MAX_HARD_ENABLE, 0x00000002 = FILE_CACHE_MIN_HARD_ENABLE
+              " -Name "Kernel32" -Namespace "Win32" -PassThru
+              
               $kernel32::SetSystemFileCacheSize(-1, -1, 0) | Out-Null
               
-              # ===== 2. 写入测试（强制落盘） =====
               Write-Host "`n--- WRITE TEST ---" -ForegroundColor Green
               
               try {
-                  # 使用 FileStream 并开启 FileOptions.WriteThrough 强制绕过缓存
                   $bufferSize = $BufferSizeKB * 1024
                   $buffer = [byte[]]::new($bufferSize)
                   $rng = [System.Security.Cryptography.RNGCryptoServiceProvider]::Create()
@@ -81,7 +77,6 @@ jobs:
                       $written += $bytesToWrite
                   }
                   
-                  # 显式刷新流（WriteThrough 下其实不需要，但保留以确保）
                   $fs.Flush($true)
                   $sw.Stop()
                   $fs.Close()
@@ -93,16 +88,13 @@ jobs:
                   Write-Host "Write test failed: $_" -ForegroundColor Red
               }
               
-              # 清除缓存，为读取测试做准备
               [System.GC]::Collect()
               [System.GC]::WaitForPendingFinalizers()
               
-              # ===== 3. 读取测试（绕过缓存） =====
               if (Test-Path $testFile) {
                   Write-Host "`n--- READ TEST ---" -ForegroundColor Green
                   
                   try {
-                      # 使用 FileOptions.SequentialScan 优化顺序读取
                       $fs = New-Object System.IO.FileStream(
                           $testFile,
                           [System.IO.FileMode]::Open,
@@ -133,7 +125,6 @@ jobs:
                       Write-Host "Read test failed: $_" -ForegroundColor Red
                   }
                   
-                  # 清理测试文件
                   Remove-Item $testFile -Force -ErrorAction SilentlyContinue
                   Write-Host ""
                   Write-Host "Test file cleaned up." -ForegroundColor Gray
@@ -142,10 +133,7 @@ jobs:
               Write-Host ""
           }
           
-          # 测试 C 盘
           Test-RealDiskSpeed -DriveLetter "C" -FileSizeMB 2048 -BufferSizeKB 64
-          
-          # 测试 D 盘
           Test-RealDiskSpeed -DriveLetter "D" -FileSizeMB 2048 -BufferSizeKB 64
           
           Write-Host "========================================" -ForegroundColor Cyan
