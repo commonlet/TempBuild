@@ -16,9 +16,23 @@ jobs:
     
     steps:
       - name: Setup tmate session
+        id: tmate  # 为后续步骤引用输出，需要设置 id
         uses: mxschmitt/action-tmate@35b54afac29c97fb54faba5b513f8fbd1882f113
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.debug_enabled }}
         with:
           limit-access-to-actor: true
-          detached: true
+          detached: true  # 启用分离模式
         timeout-minutes: 60
+
+      # 新增步骤：显式打印 tmate 的连接信息
+      - name: Display tmate connection info
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.debug_enabled }}
+        run: |
+          Write-Host "========================================" -ForegroundColor Cyan
+          Write-Host "    TMATE CONNECTION INFORMATION" -ForegroundColor Cyan
+          Write-Host "========================================" -ForegroundColor Cyan
+          Write-Host "SSH Command: ${{ steps.tmate.outputs.ssh-command }}"
+          Write-Host "SSH Address: ${{ steps.tmate.outputs.ssh-address }}"
+          Write-Host "Web URL: ${{ steps.tmate.outputs.web-url }}"
+          Write-Host "========================================"
+        shell: pwsh
