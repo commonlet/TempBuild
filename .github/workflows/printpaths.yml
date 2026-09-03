@@ -34,3 +34,35 @@ jobs:
           } else {
             Write-Host "✅ PATH length is within safe range." -ForegroundColor Green
           }
+
+      - name: Test Invoke-CmdScript style command length
+        shell: pwsh
+        run: |
+          Write-Host ""
+          Write-Host "=== Simulating Invoke-CmdScript.ps1 command ===" -ForegroundColor Cyan
+          
+          # 模拟 Invoke-CmdScript.ps1 中的命令构建
+          $script = "tools\initScripts\init.cmd"
+          $parameters = ""
+          
+          # 收集所有环境变量作为模拟参数
+          $envVars = Get-ChildItem env: | ForEach-Object { "$($_.Name)=$($_.Value)" }
+          $parameters = $envVars -join " "
+          
+          $environmentVariablesFile = "D:\temp\env.tmp"
+          $workingDirectoryFile = "D:\temp\cd.tmp"
+          
+          $cmdCommand = " `"$script`" $parameters && set > `"$environmentVariablesFile`" && cd > `"$workingDirectoryFile`" "
+          
+          Write-Host "Script: $script"
+          Write-Host "Parameters count: $($parameters.Length) characters"
+          Write-Host "Total command length: $($cmdCommand.Length) characters"
+          
+          if ($cmdCommand.Length -gt 8191) {
+            Write-Host "❌ Command length EXCEEDS 8191 character limit!" -ForegroundColor Red
+            Write-Host ""
+            Write-Host "First 300 characters of command:"
+            Write-Host $cmdCommand.Substring(0, 300)
+          } else {
+            Write-Host "✅ Command length is within limit." -ForegroundColor Green
+          }
