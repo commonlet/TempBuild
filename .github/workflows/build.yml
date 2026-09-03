@@ -1,0 +1,34 @@
+# .github/workflows/sync-onedrive.yml
+name: Sync OneDrive to D Drive
+
+on:
+  workflow_dispatch:  # 手动触发
+
+jobs:
+  sync:
+    runs-on: windows-2025-vs2026
+    
+    steps:
+      - name: Install rclone
+        run: winget install Rclone.Rclone
+        shell: pwsh
+
+      - name: Restore rclone config from Secret
+        env:
+          RCLONE_CONFIG_BASE64: ${{ secrets.RCLONE_CONFIG }}
+        run: |
+          # 创建配置目录
+          New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\.config\rclone" | Out-Null
+          # 解码并写入配置文件
+          [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($env:RCLONE_CONFIG_BASE64)) | Out-File -FilePath "$env:USERPROFILE\.config\rclone\rclone.conf" -Encoding utf8
+        shell: pwsh
+
+      - name: Sync specific folder from OneDrive to D drive
+        run: |
+          # 创建目标目录（如果不存在）
+          New-Item -ItemType Directory -Force -Path "D:\OneDrive_Sync" | Out-Null
+          
+          # 执行同步
+          # 将 "od:" 替换为你的远程名称，将 "你的远程文件夹路径" 替换为 OneDrive 中的路径
+          rclone copy od:Projects\YCL-PlatformSDK D:\YCL-PlatformSDK --progress --verbose
+        shell: pwsh
