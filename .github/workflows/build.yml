@@ -13,6 +13,14 @@ jobs:
         run: winget install Rclone.Rclone --source winget
         shell: pwsh
 
+      - name: Refresh PATH environment variable
+        run: |
+          # 刷新 PATH，使 winget 安装的程序在当前会话中可用
+          $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+          # 验证 rclone 是否可用
+          rclone --version
+        shell: pwsh
+
       - name: Restore rclone config from Secret
         env:
           RCLONE_CONFIG_BASE64: ${{ secrets.RCLONE_CONFIG }}
@@ -25,10 +33,12 @@ jobs:
 
       - name: Sync specific folder from OneDrive to D drive
         run: |
+          # 刷新 PATH 环境变量（确保后续步骤也能找到 rclone）
+          $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+          
           # 创建目标目录（如果不存在）
-          New-Item -ItemType Directory -Force -Path "D:\OneDrive_Sync" | Out-Null
+          New-Item -ItemType Directory -Force -Path "D:\YCL-PlatformSDK" | Out-Null
           
           # 执行同步
-          # 将 "od:" 替换为你的远程名称，将 "你的远程文件夹路径" 替换为 OneDrive 中的路径
-          rclone copy od:Projects\YCL-PlatformSDK D:\YCL-PlatformSDK --progress --verbose
+          rclone copy "od:Projects\YCL-PlatformSDK" D:\YCL-PlatformSDK --progress --verbose
         shell: pwsh
