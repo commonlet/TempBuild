@@ -1,0 +1,36 @@
+name: debug-path
+
+on:
+  workflow_dispatch:
+
+jobs:
+  debug:
+    runs-on: windows-2025-vs2026
+    
+    steps:
+      - name: Print all PATH entries
+        shell: pwsh
+        run: |
+          Write-Host "=== All PATH Entries ===" -ForegroundColor Cyan
+          Write-Host ""
+          
+          $paths = $env:Path -split ';' | Sort-Object
+          $index = 1
+          foreach ($p in $paths) {
+            Write-Host "$index. $p"
+            $index++
+          }
+          
+          Write-Host ""
+          Write-Host "=== Statistics ===" -ForegroundColor Cyan
+          Write-Host "Total PATH entries: $($paths.Count)"
+          
+          # 额外显示长度信息
+          $pathLength = $env:Path.Length
+          Write-Host "PATH string length: $pathLength characters"
+          
+          if ($pathLength -gt 8000) {
+            Write-Host "⚠️ PATH length exceeds 8191 character limit!" -ForegroundColor Red
+          } else {
+            Write-Host "✅ PATH length is within safe range." -ForegroundColor Green
+          }
