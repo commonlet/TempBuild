@@ -31,44 +31,31 @@ jobs:
         run: |
           $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
           New-Item -ItemType Directory -Force -Path "D:\YCL-PlatformSDK" | Out-Null
-          rclone copy "drive:YCL-PlatformSDK" D:\YCL-PlatformSDK --transfers 8 --drive-chunk-size 64M --fast-list --progress --stats 1m
+          rclone copy "drive:YCL-PlatformSDK" D:\YCL-PlatformSDK --transfers 16 --checkers 32 --drive-chunk-size 32M --fast-list --progress --stats 1m
         shell: pwsh
 
-      - name: Execute init.ps1 and build
-        shell: pwsh
+      - name: Setup build environment and build
+        shell: cmd
         run: |
-          # 刷新 PATH 以确保 rclone 可用
-          $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+          cd /d D:\YCL-PlatformSDK
+          call tools\initScripts\init.cmd
+          if errorlevel 1 exit /b 1
           
-          # 切换到项目目录
-          Set-Location -Path "D:\YCL-PlatformSDK"
+          echo Building PackageReference...
+          cd eng\PackageReference
+          msbuild /p:Platform=x64
+          if errorlevel 1 exit /b 1
           
-          # 执行 init.ps1 脚本
-          Write-Host "Executing init.ps1..." -ForegroundColor Yellow
-          .\init.ps1
+          echo Building DXaml...
+          cd ..\..
+          cd dev\DXaml
+          msbuild
+          if errorlevel 1 exit /b 1
           
-          # 如果 init.ps1 执行成功，继续后续构建
-          if ($LASTEXITCODE -eq 0) {
-              Write-Host "init.ps1 completed successfully." -ForegroundColor Green
-              
-              # 1. 在 PackageReference 目录执行 msbuild
-              Write-Host "`nBuilding PackageReference..." -ForegroundColor Yellow
-              Set-Location -Path "D:\YCL-PlatformSDK\eng\PackageReference"
-              msbuild /p:Platform=x64
-              
-              # 2. 在 dev\DXaml 目录执行 msbuild
-              Write-Host "`nBuilding DXaml..." -ForegroundColor Yellow
-              Set-Location -Path "D:\YCL-PlatformSDK\dev\DXaml"
-              msbuild
-              
-              # 3. 执行指定的 vcxproj 构建命令（所有参数合并为一行）
-              Write-Host "`nBuilding Microsoft.ui.xaml.vcxproj..." -ForegroundColor Yellow
-              Set-Location -Path "D:\YCL-PlatformSDK"
-              msbuild "D:\YCL-PlatformSDK\dev\DXaml\xcp\dxaml\dllsrv\winrt\native\Microsoft.ui.xaml.vcxproj" -v:q /p:Platform=x64 /p:Configuration=Release /graph /reportfileaccesses /p:MSBuildCacheEnabled=true /p:MSBuildCacheLogDirectory="D:\YCL-PlatformSDK\BuildOutput\Log" /p:MSBuildCacheLocalCacheRootPath="D:\YCL-PlatformSDK\BuildOutput\Temp"
-          } else {
-              Write-Host "init.ps1 failed with exit code: $LASTEXITCODE" -ForegroundColor Red
-              exit $LASTEXITCODE
-          }
+          echo Building Microsoft.ui.xaml.vcxproj...
+          cd ..\..
+          msbuild dev\DXaml\xcp\dxaml\dllsrv\winrt\native\Microsoft.ui.xaml.vcxproj -v:q /p:Platform=x64 /p:Configuration=Release /graph /reportfileaccesses /p:MSBuildCacheEnabled=true /p:MSBuildCacheLogDirectory="D:\YCL-PlatformSDK\BuildOutput\Log" /p:MSBuildCacheLocalCacheRootPath="D:\YCL-PlatformSDK\BuildOutput\Temp"
+          if errorlevel 1 exit /b 1
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
