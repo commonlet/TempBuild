@@ -2,7 +2,7 @@
 name: Sync OneDrive to D Drive
 
 on:
-  workflow_dispatch:  # 手动触发
+  workflow_dispatch:
 
 jobs:
   sync:
@@ -15,9 +15,7 @@ jobs:
 
       - name: Refresh PATH environment variable
         run: |
-          # 刷新 PATH，使 winget 安装的程序在当前会话中可用
           $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
-          # 验证 rclone 是否可用
           rclone --version
         shell: pwsh
 
@@ -25,20 +23,21 @@ jobs:
         env:
           RCLONE_CONFIG_BASE64: ${{ secrets.RCLONE_CONFIG }}
         run: |
-          # 创建配置目录
           New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\.config\rclone" | Out-Null
-          # 解码并写入配置文件
           [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($env:RCLONE_CONFIG_BASE64)) | Out-File -FilePath "$env:USERPROFILE\.config\rclone\rclone.conf" -Encoding utf8
         shell: pwsh
 
       - name: Sync specific folder from OneDrive to D drive
         run: |
-          # 刷新 PATH 环境变量（确保后续步骤也能找到 rclone）
           $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
-          
-          # 创建目标目录（如果不存在）
           New-Item -ItemType Directory -Force -Path "D:\YCL-PlatformSDK" | Out-Null
-          
-          # 执行同步
-          rclone copy "od:Projects\YCL-PlatformSDK" D:\YCL-PlatformSDK --progress --verbose
+          rclone copy "od:Projects\YCL-PlatformSDK" D:\YCL-PlatformSDK --progress
+        shell: pwsh
+
+      - name: Display synced project directory tree
+        run: |
+          Write-Host "========================================" -ForegroundColor Cyan
+          Write-Host "    SYNCED PROJECT DIRECTORY TREE" -ForegroundColor Cyan
+          Write-Host "========================================" -ForegroundColor Cyan
+          tree D:\YCL-PlatformSDK /F /A
         shell: pwsh
