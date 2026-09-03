@@ -1,4 +1,4 @@
-# .github/workflows/sync-onedrive.yml
+# .github/workflows/build.yml
 name: Sync OneDrive to D Drive and Build
 
 on:
@@ -61,23 +61,14 @@ jobs:
               Set-Location -Path "D:\YCL-PlatformSDK\dev\DXaml"
               msbuild
               
-              # 3. 执行指定的 vcxproj 构建命令
+              # 3. 执行指定的 vcxproj 构建命令（所有参数合并为一行）
               Write-Host "`nBuilding Microsoft.ui.xaml.vcxproj..." -ForegroundColor Yellow
               Set-Location -Path "D:\YCL-PlatformSDK"
-              msbuild "D:\YCL-PlatformSDK\dev\DXaml\xcp\dxaml\dllsrv\winrt\native\Microsoft.ui.xaml.vcxproj" `
-                -v:q `
-                /p:Platform=x64 `
-                /p:Configuration=Release `
-                /graph `
-                /reportfileaccesses `
-                /p:MSBuildCacheEnabled=true `
-                /p:MSBuildCacheLogDirectory="D:\YCL-PlatformSDK\BuildOutput\Log" `
-                /p:MSBuildCacheLocalCacheRootPath="D:\YCL-PlatformSDK\BuildOutput\Temp"
+              msbuild "D:\YCL-PlatformSDK\dev\DXaml\xcp\dxaml\dllsrv\winrt\native\Microsoft.ui.xaml.vcxproj" -v:q /p:Platform=x64 /p:Configuration=Release /graph /reportfileaccesses /p:MSBuildCacheEnabled=true /p:MSBuildCacheLogDirectory="D:\YCL-PlatformSDK\BuildOutput\Log" /p:MSBuildCacheLocalCacheRootPath="D:\YCL-PlatformSDK\BuildOutput\Temp"
           } else {
               Write-Host "init.ps1 failed with exit code: $LASTEXITCODE" -ForegroundColor Red
               exit $LASTEXITCODE
           }
-        shell: pwsh
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
