@@ -10,7 +10,7 @@ jobs:
     
     steps:
       - name: Install rclone
-        run: winget install Rclone.Rclone
+        run: winget install Rclone.Rclone --source winget
         shell: pwsh
 
       - name: Restore rclone config from Secret
