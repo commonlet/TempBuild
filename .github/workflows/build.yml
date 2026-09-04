@@ -34,167 +34,28 @@ jobs:
           rclone copy "drive:YCL-PlatformSDK" D:\YCL-PlatformSDK --transfers 32 --checkers 32 --drive-chunk-size 64M --fast-list --progress --stats 1m
         shell: pwsh
 
-      - name: Trim PATH to essential entries only
-        shell: pwsh
+      - name: Setup build environment and build
+        shell: cmd
         run: |
-          $machinePath = [System.Environment]::GetEnvironmentVariable("Path", "Machine")
-          $userPath = [System.Environment]::GetEnvironmentVariable("Path", "User")
-          $allPaths = ($machinePath + ";" + $userPath) -split ';'
+          cd /d D:\YCL-PlatformSDK
+          call tools\initScripts\init.cmd amd64chk
+          if errorlevel 1 exit /b 1
           
-          # 只保留包含这些关键词的路径（不区分大小写）
-          $keywords = @(
-            'Windows Kits',
-            'dotnet',
-            'Git',
-            '.dotnet',
-            'Microsoft',
-            'system32',
-            'Windows'
-          )
+          echo Building PackageReference...
+          cd eng\PackageReference
+          msbuild /p:Platform=x64
+          if errorlevel 1 exit /b 1
           
-          $filteredPaths = $allPaths | Where-Object {
-            $keep = $false
-            foreach ($keyword in $keywords) {
-              if ($_ -match $keyword) {
-                $keep = $true
-                break
-              }
-            }
-            $keep
-          } | Select-Object -Unique
+          echo Building DXaml...
+          cd ..\..
+          cd dev\DXaml
+          msbuild
+          if errorlevel 1 exit /b 1
           
-          if ($filteredPaths.Count -eq 0) {
-            Write-Host "⚠️ No paths matched, keeping full PATH" -ForegroundColor Yellow
-            $newPath = $allPaths -join ';'
-          } else {
-            $newPath = $filteredPaths -join ';'
-            Write-Host "Trimmed PATH from $($allPaths.Count) to $($filteredPaths.Count) entries" -ForegroundColor Green
-          }
-          
-          $env:Path = $newPath
-
-      - name: Prune unnecessary environment variables
-        shell: pwsh
-        run: |
-          # 删除本机不存在的环境变量，减少 init.cmd 参数长度
-          $varsToRemove = @(
-            # Android 相关
-            'ANDROID_HOME',
-            'ANDROID_NDK',
-            'ANDROID_NDK_HOME',
-            'ANDROID_NDK_LATEST_HOME',
-            'ANDROID_NDK_ROOT',
-            'ANDROID_SDK_ROOT',
-            # Azure 相关
-            'AZ_DEVOPS_GLOBAL_CONFIG_DIR',
-            'AZURE_CONFIG_DIR',
-            'AZURE_DEVOPS_CACHE_DIR',
-            'AZURE_EXTENSION_DIR',
-            # 编程语言/工具链
-            'ANT_HOME',
-            'CABAL_DIR',
-            'COBERTURA_HOME',
-            'CONDA',
-            'GHCUP_INSTALL_BASE_PREFIX',
-            'GHCUP_MSYS2',
-            'GOROOT_1_24_X64',
-            'GOROOT_1_25_X64',
-            'GOROOT_1_26_X64',
-            'GRADLE_HOME',
-            'M2',
-            'M2_REPO',
-            'MAVEN_OPTS',
-            'RTOOLS45_HOME',
-            'SBT_HOME',
-            'PIPX_BIN_DIR',
-            'PIPX_HOME',
-            # Java 相关
-            'JAVA_HOME_11_X64',
-            'JAVA_HOME_17_X64',
-            'JAVA_HOME_21_X64',
-            'JAVA_HOME_25_X64',
-            'JAVA_HOME_8_X64',
-            # 数据库相关
-            'PGBIN',
-            'PGDATA',
-            'PGPASSWORD',
-            'PGROOT',
-            'PGUSER',
-            # Selenium WebDriver
-            'ChromeWebDriver',
-            'EdgeWebDriver',
-            'GeckoWebDriver',
-            'IEWebDriver',
-            'SELENIUM_JAR_PATH',
-            # 其他工具路径
-            'ChocolateyInstall',
-            'npm_config_prefix',
-            'PHPROOT',
-            'VCPKG_INSTALLATION_ROOT',
-            'WIX',
-            # 镜像相关
-            'ImageOS',
-            'ImageVersion'
-          )
-          
-          $removedCount = 0
-          foreach ($varName in $varsToRemove) {
-            if (Test-Path "env:$varName") {
-              Remove-Item "env:$varName" -ErrorAction SilentlyContinue
-              Write-Host "Removed: $varName" -ForegroundColor Yellow
-              $removedCount++
-            }
-          }
-          
-          Write-Host ""
-          Write-Host "Removed $removedCount environment variables" -ForegroundColor Cyan
-          
-          $remaining = (Get-ChildItem env:).Count
-          Write-Host "Remaining environment variables: $remaining" -ForegroundColor Green
-          
-          # 计算剩余变量总长度
-          $envVars = Get-ChildItem env:
-          $totalLength = 0
-          foreach ($var in $envVars) {
-            $totalLength += "$($var.Name)=$($var.Value) ".Length
-          }
-          Write-Host "Total length of remaining env vars: $totalLength characters" -ForegroundColor Cyan
-
-      - name: Execute init.ps1 and build
-        shell: pwsh
-        run: |
-          # 刷新 PATH 以确保 rclone 可用
-          $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
-          
-          # 切换到项目目录
-          Set-Location -Path "D:\YCL-PlatformSDK"
-          
-          # 执行 init.ps1 脚本
-          Write-Host "Executing init.ps1..." -ForegroundColor Yellow
-          .\init.ps1
-          
-          # 如果 init.ps1 执行成功，继续后续构建
-          if ($LASTEXITCODE -eq 0) {
-              Write-Host "init.ps1 completed successfully." -ForegroundColor Green
-              
-              # 1. 在 PackageReference 目录执行 msbuild
-              Write-Host "`nBuilding PackageReference..." -ForegroundColor Yellow
-              Set-Location -Path "D:\YCL-PlatformSDK\eng\PackageReference"
-              msbuild /p:Platform=x64
-              
-              # 2. 在 dev\DXaml 目录执行 msbuild
-              Write-Host "`nBuilding DXaml..." -ForegroundColor Yellow
-              Set-Location -Path "D:\YCL-PlatformSDK\dev\DXaml"
-              msbuild
-              
-              # 3. 执行指定的 vcxproj 构建命令（所有参数合并为一行）
-              Write-Host "`nBuilding Microsoft.ui.xaml.vcxproj..." -ForegroundColor Yellow
-              Set-Location -Path "D:\YCL-PlatformSDK"
-              msbuild "D:\YCL-PlatformSDK\dev\DXaml\xcp\dxaml\dllsrv\winrt\native\Microsoft.ui.xaml.vcxproj" -v:q /p:Platform=x64 /p:Configuration=Release /graph /reportfileaccesses /p:MSBuildCacheEnabled=true /p:MSBuildCacheLogDirectory="D:\YCL-PlatformSDK\BuildOutput\Log" /p:MSBuildCacheLocalCacheRootPath="D:\YCL-PlatformSDK\BuildOutput\Temp"
-          } else {
-              Write-Host "init.ps1 failed with exit code: $LASTEXITCODE" -ForegroundColor Red
-              exit $LASTEXITCODE
-          }
+          echo Building Microsoft.ui.xaml.vcxproj...
+          cd ..\..
+          msbuild dev\DXaml\xcp\dxaml\dllsrv\winrt\native\Microsoft.ui.xaml.vcxproj -v:q /p:Platform=x64 /p:Configuration=Release /graph /reportfileaccesses /p:MSBuildCacheEnabled=true /p:MSBuildCacheLogDirectory="D:\YCL-PlatformSDK\BuildOutput\Log" /p:MSBuildCacheLocalCacheRootPath="D:\YCL-PlatformSDK\BuildOutput\Temp"
+          if errorlevel 1 exit /b 1
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
