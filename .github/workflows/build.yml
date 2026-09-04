@@ -37,10 +37,6 @@ jobs:
       - name: Setup build environment and build
         shell: cmd
         run: |
-          :: VS 2026 路径
-          call "C:\Program Files\Microsoft Visual Studio\2026\Enterprise\Common7\Tools\VsDevCmd.bat" -arch=amd64 -host_arch=amd64
-          if errorlevel 1 exit /b 1
-          
           cd /d D:\YCL-PlatformSDK
           call tools\initScripts\init.cmd amd64chk
           if errorlevel 1 exit /b 1
