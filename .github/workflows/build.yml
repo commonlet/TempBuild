@@ -31,12 +31,16 @@ jobs:
         run: |
           $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
           New-Item -ItemType Directory -Force -Path "D:\YCL-PlatformSDK" | Out-Null
-          rclone copy "drive:YCL-PlatformSDK" D:\YCL-PlatformSDK --transfers 32 --checkers 32 --drive-chunk-size 64M --fast-list --progress --stats 1m
+          rclone copy "drive:YCL-PlatformSDK" D:\YCL-PlatformSDK --transfers 8 --checkers 32 --drive-chunk-size 64M --fast-list --progress --stats 1m
         shell: pwsh
 
       - name: Setup build environment and build
         shell: cmd
         run: |
+          :: VS 2026 路径
+          call "C:\Program Files\Microsoft Visual Studio\2026\Enterprise\Common7\Tools\VsDevCmd.bat" -arch=amd64 -host_arch=amd64
+          if errorlevel 1 exit /b 1
+          
           cd /d D:\YCL-PlatformSDK
           call tools\initScripts\init.cmd amd64chk
           if errorlevel 1 exit /b 1
