@@ -35,6 +35,31 @@ jobs:
             Write-Host "✅ PATH length is within safe range." -ForegroundColor Green
           }
 
+      - name: Print all environment variables
+        shell: pwsh
+        run: |
+          Write-Host ""
+          Write-Host "=== All Environment Variables ===" -ForegroundColor Cyan
+          Write-Host ""
+          
+          $envVars = Get-ChildItem env: | Sort-Object Name
+          $index = 1
+          foreach ($var in $envVars) {
+            Write-Host "$index. $($var.Name)=$($var.Value)"
+            $index++
+          }
+          
+          Write-Host ""
+          Write-Host "=== Statistics ===" -ForegroundColor Cyan
+          Write-Host "Total environment variables: $($envVars.Count)"
+          
+          # 计算所有变量名+值的总长度（模拟 init.cmd 收到的参数）
+          $totalLength = 0
+          foreach ($var in $envVars) {
+            $totalLength += "$($var.Name)=$($var.Value) ".Length
+          }
+          Write-Host "Total length of all env vars (as parameters): $totalLength characters"
+
       - name: Test Invoke-CmdScript style command length
         shell: pwsh
         run: |
@@ -65,4 +90,11 @@ jobs:
             Write-Host $cmdCommand.Substring(0, 300)
           } else {
             Write-Host "✅ Command length is within limit." -ForegroundColor Green
+          }
+          
+          # 额外输出超过限制的警告
+          if ($cmdCommand.Length -gt 8191) {
+            Write-Host ""
+            Write-Host "💡 The command is too long because it passes ALL environment variables as parameters." -ForegroundColor Yellow
+            Write-Host "   This is what causes 'The input line is too long' error in Invoke-CmdScript.ps1" -ForegroundColor Yellow
           }
