@@ -77,6 +77,11 @@ jobs:
               {
                   Write-Host "##vso[task.setVariable variable=$VariableName]$VariableValue"
               }
+          
+              if ($env:GITHUB_ACTIONS -eq 'true')
+              {
+                  Add-Content -Path $env:GITHUB_ENV -Value "$VariableName=$VariableValue"
+              }
           }
           
           $keepPatterns = @(
