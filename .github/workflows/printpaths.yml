@@ -25,7 +25,6 @@ jobs:
           Write-Host "=== Statistics ===" -ForegroundColor Cyan
           Write-Host "Total PATH entries: $($paths.Count)"
           
-          # 额外显示长度信息
           $pathLength = $env:Path.Length
           Write-Host "PATH string length: $pathLength characters"
           
@@ -53,48 +52,167 @@ jobs:
           Write-Host "=== Statistics ===" -ForegroundColor Cyan
           Write-Host "Total environment variables: $($envVars.Count)"
           
-          # 计算所有变量名+值的总长度（模拟 init.cmd 收到的参数）
           $totalLength = 0
           foreach ($var in $envVars) {
             $totalLength += "$($var.Name)=$($var.Value) ".Length
           }
           Write-Host "Total length of all env vars (as parameters): $totalLength characters"
 
-      - name: Test Invoke-CmdScript style command length
+      - name: Reduce environment variables
+        shell: pwsh
+        run: |
+          Write-Host "=== Reducing Environment Variables ===" -ForegroundColor Cyan
+          Write-Host ""
+          
+          function Set-EnvironmentVariable
+          {
+              param(
+                  [string]$VariableName,
+                  [string]$VariableValue
+              )
+          
+              Set-Item -Path "Env:$VariableName" -Value $VariableValue
+          
+              if ($env:Pipeline -eq 'true')
+              {
+                  Write-Host "##vso[task.setVariable variable=$VariableName]$VariableValue"
+              }
+          }
+          
+          $keepPatterns = @(
+              'Microsoft',
+              'Windows',
+              'dotnet',
+              'PowerShell',
+              'Git'
+          )
+          
+          $excludePatterns = @('hostedtoolcache')
+          
+          $filteredPaths = ($env:PATH -split ';') | Where-Object {
+              $path = $_
+              if ([string]::IsNullOrWhiteSpace($path)) { return $false }
+          
+              $exclude = $excludePatterns | Where-Object { $path -like "*$_*" }
+              if ($exclude) { return $false }
+          
+              $keep = $keepPatterns | Where-Object { $path -like "*$_*" }
+              return [bool]$keep
+          } | Select-Object -Unique
+          
+          $newPath = $filteredPaths -join ';'
+          
+          Set-EnvironmentVariable -VariableName "PATH" -VariableValue $newPath
+          
+          $keepVarPatterns = @(
+              'GITHUB_',
+              'RUNNER_',
+              'ACTIONS_',
+              'AGENT_',
+              'DOTNET_',
+              'MSBUILD',
+              'VCTools',
+              'VISUALSTUDIO',
+              'Windows',
+              'System',
+              'Program',
+              'TEMP',
+              'TMP',
+              'USER',
+              'CI',
+              'windir',
+              'OS',
+              'ALLUSERSPROFILE',
+              'PUBLIC',
+              'COMPUTERNAME'
+          )
+          
+          $allVars = Get-ChildItem Env:
+          $filteredVars = $allVars | Where-Object {
+              $name = $_.Name
+              $keep = $keepVarPatterns | Where-Object { $name -match $_ }
+              return [bool]$keep
+          }
+          
+          foreach ($var in $filteredVars)
+          {
+              if ($var.Name -eq 'PATH' -or $var.Name -eq 'Path') { continue }
+              Set-EnvironmentVariable -VariableName $var.Name -VariableValue $var.Value
+          }
+          
+          Write-Host "Environment variables reduced successfully!" -ForegroundColor Green
+
+      - name: Print PATH after reduction
         shell: pwsh
         run: |
           Write-Host ""
-          Write-Host "=== Simulating Invoke-CmdScript.ps1 command ===" -ForegroundColor Cyan
+          Write-Host "=== PATH After Reduction ===" -ForegroundColor Cyan
+          Write-Host ""
           
-          # 模拟 Invoke-CmdScript.ps1 中的命令构建
-          $script = "tools\initScripts\init.cmd"
-          $parameters = ""
+          $paths = $env:Path -split ';' | Sort-Object
+          $index = 1
+          foreach ($p in $paths) {
+            Write-Host "$index. $p"
+            $index++
+          }
           
-          # 收集所有环境变量作为模拟参数
+          Write-Host ""
+          Write-Host "=== Statistics ===" -ForegroundColor Cyan
+          Write-Host "Total PATH entries after reduction: $($paths.Count)"
+          
+          $pathLength = $env:Path.Length
+          Write-Host "PATH string length after reduction: $pathLength characters"
+          
+          if ($pathLength -gt 8000) {
+            Write-Host "⚠️ PATH length exceeds 8191 character limit!" -ForegroundColor Red
+          } else {
+            Write-Host "✅ PATH length is within safe range." -ForegroundColor Green
+          }
+
+      - name: Print all environment variables after reduction
+        shell: pwsh
+        run: |
+          Write-Host ""
+          Write-Host "=== All Environment Variables After Reduction ===" -ForegroundColor Cyan
+          Write-Host ""
+          
+          $envVars = Get-ChildItem env: | Sort-Object Name
+          $index = 1
+          foreach ($var in $envVars) {
+            Write-Host "$index. $($var.Name)=$($var.Value)"
+            $index++
+          }
+          
+          Write-Host ""
+          Write-Host "=== Statistics ===" -ForegroundColor Cyan
+          Write-Host "Total environment variables after reduction: $($envVars.Count)"
+          
+          $totalLength = 0
+          foreach ($var in $envVars) {
+            $totalLength += "$($var.Name)=$($var.Value) ".Length
+          }
+          Write-Host "Total length of all env vars (as parameters) after reduction: $totalLength characters"
+
+      - name: Test command length after reduction
+        shell: pwsh
+        run: |
+          Write-Host ""
+          Write-Host "=== Command Length Test After Reduction ===" -ForegroundColor Cyan
+          
           $envVars = Get-ChildItem env: | ForEach-Object { "$($_.Name)=$($_.Value)" }
           $parameters = $envVars -join " "
           
           $environmentVariablesFile = "D:\temp\env.tmp"
           $workingDirectoryFile = "D:\temp\cd.tmp"
+          $script = "tools\initScripts\init.cmd"
           
           $cmdCommand = " `"$script`" $parameters && set > `"$environmentVariablesFile`" && cd > `"$workingDirectoryFile`" "
           
-          Write-Host "Script: $script"
           Write-Host "Parameters count: $($parameters.Length) characters"
           Write-Host "Total command length: $($cmdCommand.Length) characters"
           
           if ($cmdCommand.Length -gt 8191) {
-            Write-Host "❌ Command length EXCEEDS 8191 character limit!" -ForegroundColor Red
-            Write-Host ""
-            Write-Host "First 300 characters of command:"
-            Write-Host $cmdCommand.Substring(0, 300)
+            Write-Host "❌ Command length still EXCEEDS 8191 character limit!" -ForegroundColor Red
           } else {
-            Write-Host "✅ Command length is within limit." -ForegroundColor Green
-          }
-          
-          # 额外输出超过限制的警告
-          if ($cmdCommand.Length -gt 8191) {
-            Write-Host ""
-            Write-Host "💡 The command is too long because it passes ALL environment variables as parameters." -ForegroundColor Yellow
-            Write-Host "   This is what causes 'The input line is too long' error in Invoke-CmdScript.ps1" -ForegroundColor Yellow
+            Write-Host "✅ Command length is now within limit." -ForegroundColor Green
           }
