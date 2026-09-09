@@ -139,53 +139,18 @@ jobs:
           
           Write-Host "Keeping $($keepVars.Count) variables, removing $removedCount variables"
           
-          $env:PATH = $newPath
-          
           if ($env:GITHUB_ENV) {
-              $null | Set-Content -Path $env:GITHUB_ENV
+              $content = @()
               foreach ($key in $keepVars.Keys) {
-                  Add-Content -Path $env:GITHUB_ENV -Value "$key=$($keepVars[$key])"
+                  $content += "$key=$($keepVars[$key])"
               }
+              [System.IO.File]::WriteAllLines($env:GITHUB_ENV, $content, [System.Text.Encoding]::UTF8)
               Write-Host "Updated GITHUB_ENV with $($keepVars.Count) variables"
           }
           
-          foreach ($var in $allVars) {
-              $name = $var.Name
-              if ($name -eq 'PATH' -or $name -eq 'Path') { continue }
-              $exclude = $excludeVarPatterns | Where-Object { $name -match $_ }
-              if ($exclude) {
-                  Remove-Item -Path "Env:$name" -ErrorAction SilentlyContinue
-              }
-          }
+          $env:PATH = $newPath
           
           Write-Host "Environment variables reduced successfully!" -ForegroundColor Green
-
-      - name: Print PATH after reduction
-        shell: pwsh
-        run: |
-          Write-Host ""
-          Write-Host "=== PATH After Reduction ===" -ForegroundColor Cyan
-          Write-Host ""
-          
-          $paths = $env:Path -split ';' | Sort-Object
-          $index = 1
-          foreach ($p in $paths) {
-            Write-Host "$index. $p"
-            $index++
-          }
-          
-          Write-Host ""
-          Write-Host "=== Statistics ===" -ForegroundColor Cyan
-          Write-Host "Total PATH entries after reduction: $($paths.Count)"
-          
-          $pathLength = $env:Path.Length
-          Write-Host "PATH string length after reduction: $pathLength characters"
-          
-          if ($pathLength -gt 8000) {
-            Write-Host "⚠️ PATH length exceeds 8191 character limit!" -ForegroundColor Red
-          } else {
-            Write-Host "✅ PATH length is within safe range." -ForegroundColor Green
-          }
 
       - name: Verify reduced environment
         shell: pwsh
