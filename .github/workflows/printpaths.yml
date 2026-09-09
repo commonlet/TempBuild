@@ -107,8 +107,6 @@ jobs:
           
           $newPath = $filteredPaths -join ';'
           
-          Set-EnvironmentVariable -VariableName "PATH" -VariableValue $newPath
-          
           $excludeVarPatterns = @(
               'ANDROID',
               'ANT_HOME',
@@ -143,16 +141,36 @@ jobs:
           )
           
           $allVars = Get-ChildItem Env:
-          $filteredVars = $allVars | Where-Object {
-              $name = $_.Name
-              if ($name -eq 'PATH' -or $name -eq 'Path') { return $false }
+          $keepVars = @{}
+          foreach ($var in $allVars) {
+              $name = $var.Name
+              if ($name -eq 'PATH' -or $name -eq 'Path') {
+                  $keepVars[$name] = $newPath
+                  continue
+              }
               $exclude = $excludeVarPatterns | Where-Object { $name -match $_ }
-              return -not [bool]$exclude
+              if (-not $exclude) {
+                  $keepVars[$name] = $var.Value
+              }
           }
           
-          foreach ($var in $filteredVars)
-          {
-              Set-EnvironmentVariable -VariableName $var.Name -VariableValue $var.Value
+          # 清空所有环境变量（保留系统核心变量名）
+          Get-ChildItem Env: | Where-Object {
+              $name = $_.Name
+              $name -notmatch '^(PATH|Path|SYSTEMROOT|SystemRoot|WINDIR|windir|SYSTEMDRIVE|SystemDrive|COMSPEC|ComSpec|PROCESSOR_|NUMBER_OF_PROCESSORS|OS|USERDOMAIN|USERNAME|COMPUTERNAME)$'
+          } | Remove-Item
+          
+          # 重新设置需要保留的变量
+          foreach ($key in $keepVars.Keys) {
+              Set-Item -Path "Env:$key" -Value $keepVars[$key]
+          }
+          
+          # 清空并重新写入 GITHUB_ENV
+          if ($env:GITHUB_ENV) {
+              Clear-Content -Path $env:GITHUB_ENV -ErrorAction SilentlyContinue
+              foreach ($key in $keepVars.Keys) {
+                  Add-Content -Path $env:GITHUB_ENV -Value "$key=$($keepVars[$key])"
+              }
           }
           
           Write-Host "Environment variables reduced successfully!" -ForegroundColor Green
