@@ -8,10 +8,10 @@ jobs:
     runs-on: windows-2025-vs2026
     
     steps:
-      - name: Print all PATH entries
+      - name: Print all PATH entries (before)
         shell: pwsh
         run: |
-          Write-Host "=== All PATH Entries ===" -ForegroundColor Cyan
+          Write-Host "=== All PATH Entries (Before) ===" -ForegroundColor Cyan
           Write-Host ""
           
           $paths = $env:Path -split ';' | Sort-Object
@@ -34,11 +34,11 @@ jobs:
             Write-Host "✅ PATH length is within safe range." -ForegroundColor Green
           }
 
-      - name: Print all environment variables
+      - name: Print all environment variables (before)
         shell: pwsh
         run: |
           Write-Host ""
-          Write-Host "=== All Environment Variables ===" -ForegroundColor Cyan
+          Write-Host "=== All Environment Variables (Before) ===" -ForegroundColor Cyan
           Write-Host ""
           
           $envVars = Get-ChildItem env: | Sort-Object Name
@@ -64,6 +64,7 @@ jobs:
           Write-Host "=== Reducing Environment Variables ===" -ForegroundColor Cyan
           Write-Host ""
           
+          # --- 1. 精简 PATH ---
           $keepPatterns = @(
               'Microsoft',
               'Windows',
@@ -87,6 +88,7 @@ jobs:
           
           $newPath = $filteredPaths -join ';'
           
+          # --- 2. 决定其他环境变量的保留/删除 ---
           $excludeVarPatterns = @(
               'ANDROID',
               'ANT_HOME',
@@ -139,25 +141,33 @@ jobs:
           
           Write-Host "Keeping $($keepVars.Count) variables, removing $removedCount variables"
           
+          # --- 3. 更新当前步骤的 PATH（影响本步骤后续命令） ---
           $env:PATH = $newPath
           
+          # --- 4. 写入 GITHUB_ENV 供后续步骤使用 ---
           if ($env:GITHUB_ENV) {
-              $content = @()
+              # 清空文件
+              "" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8
+              
+              # 写入所有保留的变量
               foreach ($key in $keepVars.Keys) {
                   $value = $keepVars[$key]
+                  # 处理多行值（如 PSModulePath 可能有多行？但通常没有换行，不过处理保险）
                   if ($value -match "`r|`n") {
-                      $content += "$key<<EOF"
-                      $content += $value
-                      $content += "EOF"
+                      "$key<<EOF" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+                      $value | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+                      "EOF" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
                   } else {
-                      $content += "$key=$value"
+                      "$key=$value" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
                   }
               }
-              [System.IO.File]::WriteAllLines($env:GITHUB_ENV, $content, [System.Text.Encoding]::UTF8)
-              Write-Host "Updated GITHUB_ENV with $($keepVars.Count) variables"
+              Write-Host "✅ Updated GITHUB_ENV with $($keepVars.Count) variables"
+          } else {
+              Write-Host "⚠️ GITHUB_ENV not set, skipping file update" -ForegroundColor Yellow
           }
           
           Write-Host "Environment variables reduced successfully!" -ForegroundColor Green
+          Write-Host "NOTE: Changes will take effect in subsequent steps." -ForegroundColor Yellow
 
       - name: Verify reduced environment
         shell: pwsh
@@ -234,6 +244,33 @@ jobs:
           foreach ($var in $envVars) {
               Write-Host "$index. $($var.Name)=$($var.Value)"
               $index++
+          }
+
+      - name: Print PATH after reduction
+        shell: pwsh
+        run: |
+          Write-Host ""
+          Write-Host "=== PATH After Reduction ===" -ForegroundColor Cyan
+          Write-Host ""
+          
+          $paths = $env:Path -split ';' | Sort-Object
+          $index = 1
+          foreach ($p in $paths) {
+            Write-Host "$index. $p"
+            $index++
+          }
+          
+          Write-Host ""
+          Write-Host "=== Statistics ===" -ForegroundColor Cyan
+          Write-Host "Total PATH entries after reduction: $($paths.Count)"
+          
+          $pathLength = $env:Path.Length
+          Write-Host "PATH string length after reduction: $pathLength characters"
+          
+          if ($pathLength -gt 8000) {
+            Write-Host "⚠️ PATH length exceeds 8191 character limit!" -ForegroundColor Red
+          } else {
+            Write-Host "✅ PATH length is within safe range." -ForegroundColor Green
           }
 
       - name: Test command length after reduction
