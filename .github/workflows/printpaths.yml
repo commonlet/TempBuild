@@ -64,26 +64,6 @@ jobs:
           Write-Host "=== Reducing Environment Variables ===" -ForegroundColor Cyan
           Write-Host ""
           
-          function Set-EnvironmentVariable
-          {
-              param(
-                  [string]$VariableName,
-                  [string]$VariableValue
-              )
-          
-              Set-Item -Path "Env:$VariableName" -Value $VariableValue
-          
-              if ($env:Pipeline -eq 'true')
-              {
-                  Write-Host "##vso[task.setVariable variable=$VariableName]$VariableValue"
-              }
-          
-              if ($env:GITHUB_ACTIONS -eq 'true')
-              {
-                  Add-Content -Path $env:GITHUB_ENV -Value "$VariableName=$VariableValue"
-              }
-          }
-          
           $keepPatterns = @(
               'Microsoft',
               'Windows',
@@ -142,6 +122,7 @@ jobs:
           
           $allVars = Get-ChildItem Env:
           $keepVars = @{}
+          $removedCount = 0
           foreach ($var in $allVars) {
               $name = $var.Name
               if ($name -eq 'PATH' -or $name -eq 'Path') {
@@ -151,25 +132,29 @@ jobs:
               $exclude = $excludeVarPatterns | Where-Object { $name -match $_ }
               if (-not $exclude) {
                   $keepVars[$name] = $var.Value
+              } else {
+                  $removedCount++
               }
           }
           
-          # 清空所有环境变量（保留系统核心变量名）
-          Get-ChildItem Env: | Where-Object {
-              $name = $_.Name
-              $name -notmatch '^(PATH|Path|SYSTEMROOT|SystemRoot|WINDIR|windir|SYSTEMDRIVE|SystemDrive|COMSPEC|ComSpec|PROCESSOR_|NUMBER_OF_PROCESSORS|OS|USERDOMAIN|USERNAME|COMPUTERNAME)$'
-          } | Remove-Item
+          Write-Host "Keeping $($keepVars.Count) variables, removing $removedCount variables"
           
-          # 重新设置需要保留的变量
-          foreach ($key in $keepVars.Keys) {
-              Set-Item -Path "Env:$key" -Value $keepVars[$key]
-          }
+          $env:PATH = $newPath
           
-          # 清空并重新写入 GITHUB_ENV
           if ($env:GITHUB_ENV) {
-              Clear-Content -Path $env:GITHUB_ENV -ErrorAction SilentlyContinue
+              Set-Content -Path $env:GITHUB_ENV -Value $null
               foreach ($key in $keepVars.Keys) {
                   Add-Content -Path $env:GITHUB_ENV -Value "$key=$($keepVars[$key])"
+              }
+              Write-Host "Updated GITHUB_ENV with $($keepVars.Count) variables"
+          }
+          
+          foreach ($var in $allVars) {
+              $name = $var.Name
+              if ($name -eq 'PATH' -or $name -eq 'Path') { continue }
+              $exclude = $excludeVarPatterns | Where-Object { $name -match $_ }
+              if ($exclude) {
+                  Remove-Item -Path "Env:$name" -ErrorAction SilentlyContinue
               }
           }
           
