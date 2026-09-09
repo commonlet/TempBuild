@@ -58,7 +58,7 @@ jobs:
           }
           Write-Host "Total length of all env vars (as parameters): $totalLength characters"
 
-      - name: Reduce environment variables
+      - name: Reduce environment variables and verify (all in one step)
         shell: pwsh
         run: |
           Write-Host "=== Reducing Environment Variables ===" -ForegroundColor Cyan
@@ -141,18 +141,24 @@ jobs:
           
           Write-Host "Keeping $($keepVars.Count) variables, removing $removedCount variables"
           
-          # --- 3. 更新当前步骤的 PATH（影响本步骤后续命令） ---
+          # --- 3. 删除当前进程中不需要的变量 ---
+          foreach ($var in $allVars) {
+              $name = $var.Name
+              if ($name -eq 'PATH' -or $name -eq 'Path') { continue }
+              $exclude = $excludeVarPatterns | Where-Object { $name -match $_ }
+              if ($exclude) {
+                  Remove-Item -Path "Env:$name" -ErrorAction SilentlyContinue
+              }
+          }
+          
+          # --- 4. 更新当前进程的 PATH ---
           $env:PATH = $newPath
           
-          # --- 4. 写入 GITHUB_ENV 供后续步骤使用 ---
+          # --- 5. （可选）写入 GITHUB_ENV 以供后续步骤覆盖（但后续步骤无法删除，仅作覆盖） ---
           if ($env:GITHUB_ENV) {
-              # 清空文件
               "" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8
-              
-              # 写入所有保留的变量
               foreach ($key in $keepVars.Keys) {
                   $value = $keepVars[$key]
-                  # 处理多行值（如 PSModulePath 可能有多行？但通常没有换行，不过处理保险）
                   if ($value -match "`r|`n") {
                       "$key<<EOF" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
                       $value | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
@@ -162,17 +168,15 @@ jobs:
                   }
               }
               Write-Host "✅ Updated GITHUB_ENV with $($keepVars.Count) variables"
-          } else {
-              Write-Host "⚠️ GITHUB_ENV not set, skipping file update" -ForegroundColor Yellow
           }
           
           Write-Host "Environment variables reduced successfully!" -ForegroundColor Green
-          Write-Host "NOTE: Changes will take effect in subsequent steps." -ForegroundColor Yellow
-
-      - name: Verify reduced environment
-        shell: pwsh
-        run: |
           Write-Host ""
+          
+          # =====================================================
+          # 现在在同一进程中进行验证（所有后续命令都在精简环境中）
+          # =====================================================
+          
           Write-Host "=== Verifying Reduced Environment ===" -ForegroundColor Cyan
           Write-Host ""
           
@@ -245,10 +249,7 @@ jobs:
               Write-Host "$index. $($var.Name)=$($var.Value)"
               $index++
           }
-
-      - name: Print PATH after reduction
-        shell: pwsh
-        run: |
+          
           Write-Host ""
           Write-Host "=== PATH After Reduction ===" -ForegroundColor Cyan
           Write-Host ""
@@ -256,8 +257,8 @@ jobs:
           $paths = $env:Path -split ';' | Sort-Object
           $index = 1
           foreach ($p in $paths) {
-            Write-Host "$index. $p"
-            $index++
+              Write-Host "$index. $p"
+              $index++
           }
           
           Write-Host ""
@@ -268,19 +269,16 @@ jobs:
           Write-Host "PATH string length after reduction: $pathLength characters"
           
           if ($pathLength -gt 8000) {
-            Write-Host "⚠️ PATH length exceeds 8191 character limit!" -ForegroundColor Red
+              Write-Host "⚠️ PATH length exceeds 8191 character limit!" -ForegroundColor Red
           } else {
-            Write-Host "✅ PATH length is within safe range." -ForegroundColor Green
+              Write-Host "✅ PATH length is within safe range." -ForegroundColor Green
           }
-
-      - name: Test command length after reduction
-        shell: pwsh
-        run: |
+          
           Write-Host ""
           Write-Host "=== Command Length Test After Reduction ===" -ForegroundColor Cyan
           
-          $envVars = Get-ChildItem env: | ForEach-Object { "$($_.Name)=$($_.Value)" }
-          $parameters = $envVars -join " "
+          $envVarsForCmd = Get-ChildItem env: | ForEach-Object { "$($_.Name)=$($_.Value)" }
+          $parameters = $envVarsForCmd -join " "
           
           $environmentVariablesFile = "D:\temp\env.tmp"
           $workingDirectoryFile = "D:\temp\cd.tmp"
@@ -292,7 +290,10 @@ jobs:
           Write-Host "Total command length: $($cmdCommand.Length) characters"
           
           if ($cmdCommand.Length -gt 8191) {
-            Write-Host "❌ Command length still EXCEEDS 8191 character limit!" -ForegroundColor Red
+              Write-Host "❌ Command length still EXCEEDS 8191 character limit!" -ForegroundColor Red
           } else {
-            Write-Host "✅ Command length is now within limit." -ForegroundColor Green
+              Write-Host "✅ Command length is now within limit." -ForegroundColor Green
           }
+          
+          Write-Host ""
+          Write-Host "All verification completed within the same step." -ForegroundColor Green
