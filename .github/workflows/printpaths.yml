@@ -109,39 +109,49 @@ jobs:
           
           Set-EnvironmentVariable -VariableName "PATH" -VariableValue $newPath
           
-          $keepVarPatterns = @(
-              'GITHUB_',
-              'RUNNER_',
-              'ACTIONS_',
-              'AGENT_',
-              'DOTNET_',
-              'MSBUILD',
-              'VCTools',
-              'VISUALSTUDIO',
-              'Windows',
-              'System',
-              'Program',
-              'TEMP',
-              'TMP',
-              'USER',
-              'CI',
-              'windir',
-              'OS',
-              'ALLUSERSPROFILE',
-              'PUBLIC',
-              'COMPUTERNAME'
+          $excludeVarPatterns = @(
+              '^ANDROID_',
+              '^ANT_HOME$',
+              '^CABAL_DIR$',
+              '^CONDA$',
+              '^GHCUP_',
+              '^GOROOT_',
+              '^GRADLE_HOME$',
+              '^JAVA_HOME',
+              '^M2$',
+              '^M2_REPO$',
+              '^MAVEN_OPTS$',
+              '^npm_config_prefix$',
+              '^RTOOLS45_HOME$',
+              '^SBT_HOME$',
+              '^VCPKG_INSTALLATION_ROOT$',
+              'ChromeWebDriver',
+              'EdgeWebDriver',
+              'GeckoWebDriver',
+              'IEWebDriver',
+              'SELENIUM_JAR_PATH',
+              '^PG',
+              '^AZ_DEVOPS_',
+              '^AZURE_',
+              '^COBERTURA_HOME$',
+              '^PIPX_',
+              '^PHPROOT$',
+              '^WIX$',
+              '^PSModuleAnalysisCachePath$',
+              '^DriverData$',
+              '^ChocolateyInstall$'
           )
           
           $allVars = Get-ChildItem Env:
           $filteredVars = $allVars | Where-Object {
               $name = $_.Name
-              $keep = $keepVarPatterns | Where-Object { $name -match $_ }
-              return [bool]$keep
+              if ($name -eq 'PATH' -or $name -eq 'Path') { return $false }
+              $exclude = $excludeVarPatterns | Where-Object { $name -match $_ }
+              return -not [bool]$exclude
           }
           
           foreach ($var in $filteredVars)
           {
-              if ($var.Name -eq 'PATH' -or $var.Name -eq 'Path') { continue }
               Set-EnvironmentVariable -VariableName $var.Name -VariableValue $var.Value
           }
           
