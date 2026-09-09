@@ -142,7 +142,7 @@ jobs:
           $env:PATH = $newPath
           
           if ($env:GITHUB_ENV) {
-              Set-Content -Path $env:GITHUB_ENV -Value $null
+              $null | Set-Content -Path $env:GITHUB_ENV
               foreach ($key in $keepVars.Keys) {
                   Add-Content -Path $env:GITHUB_ENV -Value "$key=$($keepVars[$key])"
               }
@@ -187,29 +187,82 @@ jobs:
             Write-Host "✅ PATH length is within safe range." -ForegroundColor Green
           }
 
-      - name: Print all environment variables after reduction
+      - name: Verify reduced environment
         shell: pwsh
         run: |
+          Write-Host ""
+          Write-Host "=== Verifying Reduced Environment ===" -ForegroundColor Cyan
+          Write-Host ""
+          
+          $envVars = Get-ChildItem env: | Sort-Object Name
+          
+          $badPatterns = @(
+              'ANDROID',
+              'ANT_HOME',
+              'CABAL_DIR',
+              'CONDA',
+              'GHCUP',
+              'GOROOT',
+              'GRADLE_HOME',
+              'JAVA_HOME',
+              'M2',
+              'M2_REPO',
+              'MAVEN_OPTS',
+              'npm_config_prefix',
+              'RTOOLS45_HOME',
+              'SBT_HOME',
+              'VCPKG_INSTALLATION_ROOT',
+              'ChromeWebDriver',
+              'EdgeWebDriver',
+              'GeckoWebDriver',
+              'IEWebDriver',
+              'SELENIUM_JAR_PATH',
+              'PG',
+              'AZ_DEVOPS',
+              'AZURE',
+              'COBERTURA_HOME',
+              'PIPX',
+              'PHPROOT',
+              'WIX',
+              'PSModuleAnalysisCachePath',
+              'DriverData',
+              'ChocolateyInstall'
+          )
+          
+          $foundBad = $false
+          foreach ($var in $envVars) {
+              foreach ($pattern in $badPatterns) {
+                  if ($var.Name -match $pattern) {
+                      Write-Host "❌ Found unwanted variable: $($var.Name)" -ForegroundColor Red
+                      $foundBad = $true
+                  }
+              }
+          }
+          
+          if ($foundBad) {
+              Write-Host "❌ Environment still contains unwanted variables!" -ForegroundColor Red
+          } else {
+              Write-Host "✅ All unwanted variables removed!" -ForegroundColor Green
+          }
+          
+          Write-Host ""
+          Write-Host "Total environment variables: $($envVars.Count)"
+          
+          $totalLength = 0
+          foreach ($var in $envVars) {
+              $totalLength += "$($var.Name)=$($var.Value) ".Length
+          }
+          Write-Host "Total length: $totalLength characters"
+          
           Write-Host ""
           Write-Host "=== All Environment Variables After Reduction ===" -ForegroundColor Cyan
           Write-Host ""
           
-          $envVars = Get-ChildItem env: | Sort-Object Name
           $index = 1
           foreach ($var in $envVars) {
-            Write-Host "$index. $($var.Name)=$($var.Value)"
-            $index++
+              Write-Host "$index. $($var.Name)=$($var.Value)"
+              $index++
           }
-          
-          Write-Host ""
-          Write-Host "=== Statistics ===" -ForegroundColor Cyan
-          Write-Host "Total environment variables after reduction: $($envVars.Count)"
-          
-          $totalLength = 0
-          foreach ($var in $envVars) {
-            $totalLength += "$($var.Name)=$($var.Value) ".Length
-          }
-          Write-Host "Total length of all env vars (as parameters) after reduction: $totalLength characters"
 
       - name: Test command length after reduction
         shell: pwsh
