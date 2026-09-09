@@ -139,16 +139,23 @@ jobs:
           
           Write-Host "Keeping $($keepVars.Count) variables, removing $removedCount variables"
           
+          $env:PATH = $newPath
+          
           if ($env:GITHUB_ENV) {
               $content = @()
               foreach ($key in $keepVars.Keys) {
-                  $content += "$key=$($keepVars[$key])"
+                  $value = $keepVars[$key]
+                  if ($value -match "`r|`n") {
+                      $content += "$key<<EOF"
+                      $content += $value
+                      $content += "EOF"
+                  } else {
+                      $content += "$key=$value"
+                  }
               }
               [System.IO.File]::WriteAllLines($env:GITHUB_ENV, $content, [System.Text.Encoding]::UTF8)
               Write-Host "Updated GITHUB_ENV with $($keepVars.Count) variables"
           }
-          
-          $env:PATH = $newPath
           
           Write-Host "Environment variables reduced successfully!" -ForegroundColor Green
 
