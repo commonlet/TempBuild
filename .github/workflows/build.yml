@@ -37,24 +37,25 @@ jobs:
       - name: Setup build environment and build
         shell: pwsh
         run: |
-          Set-Location -Path "D:\YCL-PlatformSDK"
+          $repoRoot = "D:\YCL-PlatformSDK"
+          
+          Set-Location -Path $repoRoot
           
           .\init.ps1 amd64chk
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           
           Write-Host "Building PackageReference..."
-          Set-Location -Path "eng\PackageReference"
+          Set-Location -Path "$repoRoot\eng\PackageReference"
           msbuild /p:Platform=x64
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           
           Write-Host "Building DXaml..."
-          Set-Location -Path "..\.."
-          Set-Location -Path "dev\DXaml"
+          Set-Location -Path "$repoRoot\dev\DXaml"
           msbuild
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           
           Write-Host "Building Microsoft.ui.xaml.vcxproj..."
-          Set-Location -Path "..\.."
+          Set-Location -Path $repoRoot
           msbuild dev\DXaml\xcp\dxaml\dllsrv\winrt\native\Microsoft.ui.xaml.vcxproj -v:q /p:Platform=x64 /p:Configuration=Release /graph /reportfileaccesses /p:MSBuildCacheEnabled=true /p:MSBuildCacheLogDirectory="D:\YCL-PlatformSDK\BuildOutput\Log" /p:MSBuildCacheLocalCacheRootPath="D:\YCL-PlatformSDK\BuildOutput\Temp"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
