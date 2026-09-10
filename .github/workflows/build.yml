@@ -35,27 +35,28 @@ jobs:
         shell: pwsh
 
       - name: Setup build environment and build
-        shell: cmd
+        shell: pwsh
         run: |
-          cd /d D:\YCL-PlatformSDK
-          call tools\initScripts\init.cmd amd64chk
-          if errorlevel 1 exit /b 1
+          Set-Location -Path "D:\YCL-PlatformSDK"
           
-          echo Building PackageReference...
-          cd eng\PackageReference
+          .\init.ps1 amd64chk
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          
+          Write-Host "Building PackageReference..."
+          Set-Location -Path "eng\PackageReference"
           msbuild /p:Platform=x64
-          if errorlevel 1 exit /b 1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           
-          echo Building DXaml...
-          cd ..\..
-          cd dev\DXaml
+          Write-Host "Building DXaml..."
+          Set-Location -Path "..\.."
+          Set-Location -Path "dev\DXaml"
           msbuild
-          if errorlevel 1 exit /b 1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           
-          echo Building Microsoft.ui.xaml.vcxproj...
-          cd ..\..
+          Write-Host "Building Microsoft.ui.xaml.vcxproj..."
+          Set-Location -Path "..\.."
           msbuild dev\DXaml\xcp\dxaml\dllsrv\winrt\native\Microsoft.ui.xaml.vcxproj -v:q /p:Platform=x64 /p:Configuration=Release /graph /reportfileaccesses /p:MSBuildCacheEnabled=true /p:MSBuildCacheLogDirectory="D:\YCL-PlatformSDK\BuildOutput\Log" /p:MSBuildCacheLocalCacheRootPath="D:\YCL-PlatformSDK\BuildOutput\Temp"
-          if errorlevel 1 exit /b 1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
