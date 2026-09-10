@@ -29,7 +29,7 @@ jobs:
           [IO.File]::WriteAllBytes($saJsonPath, [Convert]::FromBase64String($env:GDRIVE_SERVICE_JSON))
           Write-Host "Service account JSON written to: $saJsonPath"
 
-          # 2. 生成 rclone.conf
+          # 2. 生成 rclone.conf，root_folder_id 指向共享的代码文件夹
           $rcloneDir = "$env:USERPROFILE\.config\rclone"
           New-Item -ItemType Directory -Force -Path $rcloneDir | Out-Null
 
@@ -38,6 +38,7 @@ jobs:
           type = drive
           scope = drive
           service_account_file = $saJsonPath
+          root_folder_id = 1xp4ac1FUWHkQ-WUFbGiB6rody6lQIMgb
           "@
 
           $rcloneConf | Out-File -FilePath "$rcloneDir\rclone.conf" -Encoding utf8
@@ -52,7 +53,8 @@ jobs:
         run: |
           $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
           New-Item -ItemType Directory -Force -Path "D:\YCL-PlatformSDK" | Out-Null
-          rclone copy "drive:YCL-PlatformSDK" D:\YCL-PlatformSDK --transfers 8 --checkers 32 --drive-chunk-size 64M --fast-list --progress --stats 1m
+          # root_folder_id 已指向 YCL-PlatformSDK，直接用 drive:
+          rclone copy "drive:" D:\YCL-PlatformSDK --transfers 8 --checkers 32 --drive-chunk-size 64M --fast-list --progress --stats 1m
         shell: pwsh
 
       - name: Setup build environment and build
