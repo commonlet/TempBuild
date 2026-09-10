@@ -19,15 +19,36 @@ jobs:
           rclone --version
         shell: pwsh
 
-      - name: Restore rclone config from Secret
-        env:
-          RCLONE_CONFIG_BASE64: ${{ secrets.RCLONE_CONFIG }}
-        run: |
-          New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\.config\rclone" | Out-Null
-          [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($env:RCLONE_CONFIG_BASE64)) | Out-File -FilePath "$env:USERPROFILE\.config\rclone\rclone.conf" -Encoding utf8
+      - name: Setup rclone with Service Account
         shell: pwsh
+        env:
+          GDRIVE_SERVICE_JSON: ${{ secrets.GDRIVE_SERVICE_JSON }}
+        run: |
+          # 1. 解码 Base64 到临时 JSON 文件
+          $saJsonPath = "$env:RUNNER_TEMP\gdrive-service-account.json"
+          [IO.File]::WriteAllBytes($saJsonPath, [Convert]::FromBase64String($env:GDRIVE_SERVICE_JSON))
+          Write-Host "Service account JSON written to: $saJsonPath"
 
-      - name: Sync specific folder from OneDrive to D drive
+          # 2. 生成 rclone.conf
+          $rcloneDir = "$env:USERPROFILE\.config\rclone"
+          New-Item -ItemType Directory -Force -Path $rcloneDir | Out-Null
+
+          $rcloneConf = @"
+          [drive]
+          type = drive
+          scope = drive
+          service_account_file = $saJsonPath
+          "@
+
+          $rcloneConf | Out-File -FilePath "$rcloneDir\rclone.conf" -Encoding utf8
+          Write-Host "rclone.conf written."
+
+          # 3. 验证
+          $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+          rclone listremotes
+          rclone lsd drive:
+
+      - name: Sync specific folder from Google Drive to D drive
         run: |
           $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
           New-Item -ItemType Directory -Force -Path "D:\YCL-PlatformSDK" | Out-Null
