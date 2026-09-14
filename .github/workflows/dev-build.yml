@@ -1,0 +1,59 @@
+name: Dev Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      flavor:
+        description: 'Build Flavor'
+        required: true
+        default: 'x64chk'
+        type: choice
+        options:
+          - x64chk
+          - x64fre
+          - arm64chk
+          - arm64fre
+          - all
+      target:
+        description: 'Build Target'
+        required: true
+        default: 'product'
+        type: choice
+        options:
+          - appmodule
+          - auto
+          - controls
+          - data
+          - dcomp
+          - deploy
+          - detours
+          - diag
+          - graphics
+          - ink
+          - product
+          - prodtest
+          - pux
+          - shell
+          - test
+
+jobs:
+  clone:
+    runs-on: windows-2025-vs2026
+    steps:
+      - name: Generate reader token
+        id: reader-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.READER_APP_ID }}
+          private-key: ${{ secrets.READER_APP_PRIVATE_KEY }}
+          owner: commonlet
+          repositories: YCL-PlatformSDK
+
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          repository: commonlet/YCL-PlatformSDK
+          ref: experimental
+          token: ${{ steps.reader-token.outputs.token }}
+          fetch-depth: 1
+          persist-credentials: false
