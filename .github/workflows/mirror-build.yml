@@ -1,0 +1,88 @@
+name: Mirror Build
+
+on:
+  repository_dispatch:
+    types: [private-branch-update]
+
+concurrency:
+  group: mirror-build-${{ github.event.client_payload.sha }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build (${{ matrix.flavor }})
+    runs-on: windows-2025-vs2026
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - flavor: x64chk
+            platform: x64
+            configuration: Debug
+          - flavor: x64fre
+            platform: x64
+            configuration: Release
+          - flavor: arm64chk
+            platform: arm64
+            configuration: Debug
+          - flavor: arm64fre
+            platform: arm64
+            configuration: Release
+
+    env:
+      PLATFORM_INIT_FLAVOR: ${{ matrix.flavor }}
+      PLATFORM_BUILD_PLATFORM: ${{ matrix.platform }}
+      PLATFORM_BUILD_CONFIGURATION: ${{ matrix.configuration }}
+      BuildPlatform: ${{ matrix.platform }}
+      NUGET_PACKAGES: ${{ github.workspace }}\packages
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+      DOTNET_NOLOGO: '1'
+
+    steps:
+      - name: Generate reader token
+        id: reader-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.READER_APP_ID }}
+          private-key: ${{ secrets.READER_APP_PRIVATE_KEY }}
+          owner: commonlet
+          repositories: YCL-PlatformSDK
+
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          repository: ${{ github.event.client_payload.repo }}
+          ref: ${{ github.event.client_payload.sha }}
+          token: ${{ steps.reader-token.outputs.token }}
+          fetch-depth: 1
+          show-progress: false
+
+      - name: Initialize build environment and build
+        shell: pwsh
+        run: |
+          & "${{ github.workspace }}/.github/scripts/build-pr.ps1" `
+            -Flavor $env:PLATFORM_INIT_FLAVOR `
+            -Platform $env:PLATFORM_BUILD_PLATFORM `
+            -Configuration $env:PLATFORM_BUILD_CONFIGURATION
+
+      - name: Upload MSBuild binlogs
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: binlogs-${{ matrix.flavor }}
+          path: BuildOutput/Logs/*.binlog
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Upload product runtime payload
+        uses: actions/upload-artifact@v6
+        with:
+          name: platformsdk-product-${{ matrix.flavor }}
+          path: |
+            BuildOutput/packaging/${{ matrix.configuration }}/runtimes-framework/win-${{ matrix.platform }}/**
+          if-no-files-found: warn
+          retention-days: 7
