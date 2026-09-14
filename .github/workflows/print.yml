@@ -1,0 +1,15 @@
+name: Debug Workspace
+
+on:
+  workflow_dispatch:
+
+jobs:
+  debug:
+    runs-on: windows-2025-vs2026
+    steps:
+      - name: Print github.workspace
+        shell: pwsh
+        run: |
+          Write-Host "github.workspace = ${{ github.workspace }}"
+          Write-Host "GITHUB_WORKSPACE = $env:GITHUB_WORKSPACE"
+          Write-Host "Current directory = $(Get-Location)"
