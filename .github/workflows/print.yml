@@ -25,6 +25,13 @@ jobs:
         run: |  
           New-Item -ItemType Directory -Force -Path dist | Out-Null 
           "hello world" | Set-Content -Path dist/test.txt
+
+      - name: Check env vars
+        shell: pwsh
+        run: |
+          Write-Host "ACTIONS_RUNTIME_TOKEN = $env:ACTIONS_RUNTIME_TOKEN"
+          Write-Host "ACTIONS_RUNTIME_URL = $env:ACTIONS_RUNTIME_URL"
+          Write-Host "ACTIONS_RESULTS_URL = $env:ACTIONS_RESULTS_URL"
           
       - name: Run custom upload script  
         shell: pwsh  
