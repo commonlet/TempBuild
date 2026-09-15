@@ -23,7 +23,8 @@ jobs:
       - name: Create test file for verification  
         shell: pwsh  
         run: |  
-          New-Item -ItemType Directory -Force -Path dist | Out-Null "hello world" | Set-Content -Path dist/test.txt
+          New-Item -ItemType Directory -Force -Path dist | Out-Null 
+          "hello world" | Set-Content -Path dist/test.txt
           
       - name: Run custom upload script  
         shell: pwsh  
