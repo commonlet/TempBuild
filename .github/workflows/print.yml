@@ -13,18 +13,28 @@ jobs:
           Write-Host "github.workspace = ${{ github.workspace }}"
           Write-Host "GITHUB_WORKSPACE = $env:GITHUB_WORKSPACE"
           Write-Host "Current directory = $(Get-Location)"
-      - name: Checkout  
-        uses: actions/checkout@v4 
-        
-      - name: Install deps  
-        shell: pwsh  
-        run: npm install @actions/artifact @actions/glob  
-  
-      - name: Create test file for verification  
-        shell: pwsh  
-        run: |  
-          New-Item -ItemType Directory -Force -Path dist | Out-Null 
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install deps
+        shell: pwsh
+        run: npm install @actions/artifact @actions/glob
+
+      - name: Create test file for verification
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
           "hello world" | Set-Content -Path dist/test.txt
+
+      # 关键：这个 step 触发 runner 注入 ACTIONS_RUNTIME_TOKEN 等变量
+      - name: Prime runtime env
+        uses: actions/upload-artifact@v6
+        with:
+          name: prime-runtime
+          path: dist/test.txt
+          if-no-files-found: ignore
+          retention-days: 1
 
       - name: Check env vars
         shell: pwsh
@@ -32,9 +42,9 @@ jobs:
           Write-Host "ACTIONS_RUNTIME_TOKEN = $env:ACTIONS_RUNTIME_TOKEN"
           Write-Host "ACTIONS_RUNTIME_URL = $env:ACTIONS_RUNTIME_URL"
           Write-Host "ACTIONS_RESULTS_URL = $env:ACTIONS_RESULTS_URL"
-          
-      - name: Run custom upload script  
-        shell: pwsh  
-        run: |  
-          node upload.mjs "my-artifact" "dist/**" "7" "6" "true" "warn" "false"  
+
+      - name: Run custom upload script
+        shell: pwsh
+        run: |
+          node upload.mjs "my-artifact" "dist/**" "7" "6" "true" "warn" "false"
           Write-Host "Exit code: $LASTEXITCODE"
