@@ -13,7 +13,9 @@ jobs:
           Write-Host "github.workspace = ${{ github.workspace }}"
           Write-Host "GITHUB_WORKSPACE = $env:GITHUB_WORKSPACE"
           Write-Host "Current directory = $(Get-Location)"
-
+      - name: Checkout  
+        uses: actions/checkout@v4 
+        
       - name: Install deps  
         shell: pwsh  
         run: npm install @actions/artifact @actions/glob  
