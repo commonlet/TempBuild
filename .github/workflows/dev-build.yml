@@ -62,6 +62,7 @@ jobs:
   build:
     needs: setup
     runs-on: windows-2025-vs2026
+    timeout-minutes: 360
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.setup.outputs.matrix) }}
@@ -98,6 +99,7 @@ jobs:
         shell: pwsh
         env: 
           DRIVE_SERVICE_JSON: ${{ secrets.DRIVE_SERVICE_JSON }}
+          DRIVE_UPLOAD_CONFIG: ${{ secrets.DRIVE_UPLOAD_CONFIG }}
 
         run: |
           & "${{ github.workspace }}/.github/scripts/build-dev.ps1" `
