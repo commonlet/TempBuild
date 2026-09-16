@@ -56,8 +56,8 @@ jobs:
           )
 
           $selected = '${{ github.event.inputs.flavor }}'
-          $include = if ($selected -eq 'all') { $all } else { $all | Where-Object flavor -eq $selected }
-          "matrix=$(@{ include = $include } | ConvertTo-Json -Compress -Depth 5)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          $matrix = @{ include = @($selected -eq 'all' ? $all : ($all | Where-Object flavor -eq $selected)) } | ConvertTo-Json -Compress -Depth 5
+          "matrix=$matrix" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 
   build:
     needs: setup
