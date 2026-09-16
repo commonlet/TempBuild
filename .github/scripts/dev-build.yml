@@ -1,0 +1,128 @@
+name: Dev Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      flavor:
+        description: 'Build Flavor'
+        required: true
+        default: 'x64chk'
+        type: choice
+        options:
+          - x64chk
+          - x64fre
+          - arm64chk
+          - arm64fre
+          - all
+          
+      target:
+        description: 'Build Target'
+        required: true
+        default: 'product'
+        type: choice
+        options:
+          - appmodule
+          - auto
+          - controls
+          - data
+          - dcomp
+          - deploy
+          - detours
+          - diag
+          - graphics
+          - ink
+          - product
+          - prodtest
+          - pux
+          - shell
+          - test
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+
+    steps:
+      - name: Compute matrix
+        id: set-matrix
+        shell: pwsh
+        run: |
+          $all = @(
+            @{ flavor = 'x64chk';   platform = 'x64';   configuration = 'Debug' },
+            @{ flavor = 'x64fre';   platform = 'x64';   configuration = 'Release' },
+            @{ flavor = 'arm64chk'; platform = 'arm64'; configuration = 'Debug' },
+            @{ flavor = 'arm64fre'; platform = 'arm64'; configuration = 'Release' }
+          )
+
+          $selected = '${{ github.event.inputs.flavor }}'
+          $matrix = @{ include = @($selected -eq 'all' ? $all : ($all | Where-Object flavor -eq $selected)) } | ConvertTo-Json -Compress -Depth 5
+          "matrix=$matrix" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+  build:
+    needs: setup
+    runs-on: windows-2025-vs2026
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.setup.outputs.matrix) }}
+
+    env:
+      PLATFORM_INIT_FLAVOR: ${{ matrix.flavor }}
+      PLATFORM_BUILD_PLATFORM: ${{ matrix.platform }}
+      PLATFORM_BUILD_CONFIGURATION: ${{ matrix.configuration }}
+      BuildPlatform: ${{ matrix.platform }}
+      NUGET_PACKAGES: ${{ github.workspace }}\packages
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+      DOTNET_NOLOGO: '1'
+
+    steps:
+      - name: Generate reader token
+        id: reader-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.READER_APP_ID }}
+          private-key: ${{ secrets.READER_APP_PRIVATE_KEY }}
+          owner: commonlet
+          repositories: YCL-PlatformSDK
+
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          repository: commonlet/YCL-PlatformSDK
+          ref: experimental
+          token: ${{ steps.reader-token.outputs.token }}
+          fetch-depth: 1
+          persist-credentials: false
+      
+      - name: Initialize environment and build
+        shell: pwsh
+        env: 
+          DRIVE_SERVICE_JSON: ${{ secrets.DRIVE_SERVICE_JSON }}
+          DRIVE_UPLOAD_CONFIG: ${{ secrets.DRIVE_UPLOAD_CONFIG }}
+
+        run: |
+          & "${{ github.workspace }}/.github/scripts/build-dev.ps1" `
+            -Target "${{ github.event.inputs.target }}" `
+            -Flavor $env:PLATFORM_INIT_FLAVOR `
+            -Platform $env:PLATFORM_BUILD_PLATFORM `
+            -Configuration $env:PLATFORM_BUILD_CONFIGURATION
+
+      - name: Upload MSBuild binlogs
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: binlogs-${{ matrix.flavor }}
+          path: BuildOutput/Logs/*.binlog
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Upload product runtime payload
+        uses: actions/upload-artifact@v6
+        with:
+          name: platformsdk-product-${{ matrix.flavor }}
+          path: |
+            BuildOutput/packaging/${{ matrix.configuration }}/runtimes-framework/win-${{ matrix.platform }}/**
+
+          if-no-files-found: warn
+          retention-days: 7
