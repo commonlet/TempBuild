@@ -14,6 +14,7 @@ on:
           - arm64chk
           - arm64fre
           - all
+          
       target:
         description: 'Build Target'
         required: true
@@ -37,8 +38,43 @@ on:
           - test
 
 jobs:
-  clone:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+
+    steps:
+      - name: Compute matrix
+        id: set-matrix
+        shell: pwsh
+        run: |
+          $all = @(
+            @{ flavor = 'x64chk';   platform = 'x64';   configuration = 'Debug' },
+            @{ flavor = 'x64fre';   platform = 'x64';   configuration = 'Release' },
+            @{ flavor = 'arm64chk'; platform = 'arm64'; configuration = 'Debug' },
+            @{ flavor = 'arm64fre'; platform = 'arm64'; configuration = 'Release' }
+          )
+
+          $selected = '${{ github.event.inputs.flavor }}'
+          $include = if ($selected -eq 'all') { $all } else { $all | Where-Object flavor -eq $selected }
+          "matrix=$(@{ include = $include } | ConvertTo-Json -Compress -Depth 5)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+  build:
+    needs: setup
     runs-on: windows-2025-vs2026
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.setup.outputs.matrix) }}
+
+    env:
+      PLATFORM_INIT_FLAVOR: ${{ matrix.flavor }}
+      PLATFORM_BUILD_PLATFORM: ${{ matrix.platform }}
+      PLATFORM_BUILD_CONFIGURATION: ${{ matrix.configuration }}
+      BuildPlatform: ${{ matrix.platform }}
+      NUGET_PACKAGES: ${{ github.workspace }}\packages
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+      DOTNET_NOLOGO: '1'
+
     steps:
       - name: Generate reader token
         id: reader-token
@@ -57,3 +93,34 @@ jobs:
           token: ${{ steps.reader-token.outputs.token }}
           fetch-depth: 1
           persist-credentials: false
+      
+      - name: Initialize environment and build
+        shell: pwsh
+        env: 
+          DRIVE_SERVICE_JSON: ${{ secrets.DRIVE_SERVICE_JSON }}
+
+        run: |
+          & "${{ github.workspace }}/.github/scripts/build-dev.ps1" `
+            -Target "${{ github.event.inputs.target }}" `
+            -Flavor $env:PLATFORM_INIT_FLAVOR `
+            -Platform $env:PLATFORM_BUILD_PLATFORM `
+            -Configuration $env:PLATFORM_BUILD_CONFIGURATION
+
+      - name: Upload MSBuild binlogs
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: binlogs-${{ matrix.flavor }}
+          path: BuildOutput/Logs/*.binlog
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Upload product runtime payload
+        uses: actions/upload-artifact@v6
+        with:
+          name: platformsdk-product-${{ matrix.flavor }}
+          path: |
+            BuildOutput/packaging/${{ matrix.configuration }}/runtimes-framework/win-${{ matrix.platform }}/**
+
+          if-no-files-found: warn
+          retention-days: 7
