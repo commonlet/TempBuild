@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="CustomTasks/CustomTasks.csproj" Id="a587ea82-2d15-46dc-96ed-95154be5c9ab" />
+  <Project Path="CustomTasksTool/CustomTasksTool.csproj" Id="c3ff1d11-ec0c-4da1-b981-ca7d750e5f74" />
+</Solution>
