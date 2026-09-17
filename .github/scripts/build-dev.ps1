@@ -51,9 +51,7 @@ Write-Host "Syncing from Drive to working directory..."
 rclone sync "drive:YCL-PlatformSDK" "$env:GITHUB_WORKSPACE" --exclude ".github/**" --transfers 8 --checkers 32 --drive-chunk-size 64M --fast-list --progress --stats 1m `
   --filter "+ Build.cmd" `
   --filter "+ init.ps1" `
-  --filter "+ tools/DevCmd.cmd" `
-  --filter "+ tools/initScripts/**" `
-  --filter "+ tools/Trim-EnvironmentVariables.ps1" `
+  --filter "+ tools/**" `
   --filter "- **"
 
 if ($LASTEXITCODE -ne 0) 
