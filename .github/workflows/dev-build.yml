@@ -94,12 +94,6 @@ jobs:
           token: ${{ steps.reader-token.outputs.token }}
           fetch-depth: 1
           persist-credentials: false
-          
-      - name: Checkout
-        uses: actions/checkout@v5
-        with:
-          fetch-depth: 1
-          persist-credentials: false
       
       - name: Initialize environment and build
         shell: pwsh
