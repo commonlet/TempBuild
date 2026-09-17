@@ -2,7 +2,7 @@ function Initialize-BuildEnvironment
 {
     [CmdletBinding()]
     param([Parameter(Mandatory)] [string]$Flavor)
-
+    
     # Run init with /envcheck to set up environment variables and PATH
     # This skips NuGet restore — a full init must have been run previously.
     try 
@@ -21,7 +21,10 @@ function Start-CiBuild
     [CmdletBinding()]
     param([string]$Target)
 
-    $env:EnvironmentInitialized = "1"
+    Write-Host "=== BEFORE Build.cmd ==="
+    Write-Host "EnvironmentInitialized = $env:EnvironmentInitialized"
+    Write-Host "ToolsRoot = $env:ToolsRoot"
+    Write-Host "RepoRoot = $env:RepoRoot"
     
     & (Join-Path $repoRootDir "Build.cmd") $Target
     if ($LASTEXITCODE -ne 0) 
