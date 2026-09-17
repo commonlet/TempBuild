@@ -21,6 +21,8 @@ function Start-CiBuild
     [CmdletBinding()]
     param([string]$Target)
 
+    $env:EnvironmentInitialized = "1"
+    
     & (Join-Path $repoRootDir "Build.cmd") $Target
     if ($LASTEXITCODE -ne 0) 
     {
