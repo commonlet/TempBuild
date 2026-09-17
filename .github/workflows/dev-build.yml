@@ -104,11 +104,7 @@ jobs:
           DRIVE_UPLOAD_CONFIG: ${{ secrets.DRIVE_UPLOAD_CONFIG }}
 
         run: |
-          & "${{ github.workspace }}/.github/scripts/build-dev.ps1" `
-            -Target "${{ github.event.inputs.target }}" `
-            -Flavor $env:PLATFORM_INIT_FLAVOR `
-            -Platform $env:PLATFORM_BUILD_PLATFORM `
-            -Configuration $env:PLATFORM_BUILD_CONFIGURATION
+          & "${{ github.workspace }}/.github/scripts/build-dev.ps1" -Target "${{ github.event.inputs.target }}" -Flavor $env:PLATFORM_INIT_FLAVOR
 
       - name: Upload MSBuild binlogs
         if: failure()
