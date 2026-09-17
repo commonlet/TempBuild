@@ -91,7 +91,7 @@ jobs:
         with:
           repository: commonlet/YCL-PlatformSDK
           ref: experimental
-          token: :${{ steps.reader-token.outputs.token }}
+          token: ${{ steps.reader-token.outputs.token }}
           fetch-depth: 1
           persist-credentials: false
       
