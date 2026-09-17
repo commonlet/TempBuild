@@ -89,11 +89,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
         with:
-        repository: commonlet/YCL-PlatformSDK
-        ref: experimental
-        token: :${{ steps.reader-token.outputs.token }}
-        fetch-depth: 1
-        persist-credentials: false
+          repository: commonlet/YCL-PlatformSDK
+          ref: experimental
+          token: :${{ steps.reader-token.outputs.token }}
+          fetch-depth: 1
+          persist-credentials: false
       
       - name: Initialize environment and build
         shell: pwsh
