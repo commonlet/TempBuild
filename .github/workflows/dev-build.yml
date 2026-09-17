@@ -40,6 +40,7 @@ on:
 jobs:
   setup:
     runs-on: ubuntu-latest
+    name: Setup
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
 
@@ -62,6 +63,7 @@ jobs:
   build:
     needs: setup
     runs-on: windows-2025-vs2026
+    name: Build (${{ matrix.flavor }})
     timeout-minutes: 360
     strategy:
       fail-fast: false
