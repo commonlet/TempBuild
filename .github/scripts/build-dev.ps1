@@ -48,7 +48,7 @@ $rcloneConf | Out-File -FilePath "$rcloneDir\rclone.conf" -Encoding utf8
 rclone listremotes
 
 Write-Host "Syncing from Drive to working directory..."
-rclone sync "drive:YCL-PlatformSDK" "$env:GITHUB_WORKSPACE" --exclude ".github/**" --transfers 8 --checkers 32 --drive-chunk-size 64M --fast-list --progress --stats 1m
+rclone sync "drive:YCL-PlatformSDK" "$env:GITHUB_WORKSPACE" --exclude ".github/**" --transfers 8 --checkers 32 --drive-chunk-size 64M --fast-list --progress --stats 1m" `
   --filter "+ Build.cmd" `
   --filter "+ init.ps1" `
   --filter "+ tools/initScripts/**" `
