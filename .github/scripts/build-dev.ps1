@@ -37,6 +37,7 @@ $rcloneConf = @"
 [drive]
 type = drive
 scope = drive
+shared_with_me = true
 service_account_file = $saJsonPath
 
 $driveUploadConfig
@@ -69,7 +70,7 @@ while ($true)
 {
     Start-Sleep -Seconds $pollInterval
 
-    rclone check "drive:YCL-PlatformSDK" "$env:GITHUB_WORKSPACE" --fast-list --drive-shared-with-me --one-way --max-age 5m
+    rclone check "drive:YCL-PlatformSDK" "$env:GITHUB_WORKSPACE" --fast-list --one-way --max-age 5m
     if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 1)
     {
         Write-Host "::error::rclone check failed with exit code $LASTEXITCODE."
