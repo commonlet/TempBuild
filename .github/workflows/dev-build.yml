@@ -85,7 +85,16 @@ jobs:
           private-key: ${{ secrets.READER_APP_PRIVATE_KEY }}
           owner: commonlet
           repositories: YCL-PlatformSDK
-
+          
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          repository: commonlet/YCL-PlatformSDK
+          ref: experimental
+          token: ${{ steps.reader-token.outputs.token }}
+          fetch-depth: 1
+          persist-credentials: false
+          
       - name: Checkout
         uses: actions/checkout@v5
         with:
