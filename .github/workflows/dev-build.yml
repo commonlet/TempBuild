@@ -92,8 +92,8 @@ jobs:
         repository: commonlet/YCL-PlatformSDK
         ref: experimental
         token: :${{ steps.reader-token.outputs.token }}
-          fetch-depth: 1
-          persist-credentials: false
+        fetch-depth: 1
+        persist-credentials: false
       
       - name: Initialize environment and build
         shell: pwsh
