@@ -99,7 +99,8 @@ jobs:
       
       - name: Initialize environment and build
         shell: pwsh
-        env: 
+        env:
+          DEV_BUILD: 'true'
           DRIVE_SERVICE_JSON: ${{ secrets.DRIVE_SERVICE_JSON }}
           DRIVE_UPLOAD_CONFIG: ${{ secrets.DRIVE_UPLOAD_CONFIG }}
 
