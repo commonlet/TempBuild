@@ -1,4 +1,4 @@
-name: Mirror Build
+name: PR Build
 
 on:
   repository_dispatch:
@@ -60,14 +60,18 @@ jobs:
           token: ${{ steps.reader-token.outputs.token }}
           fetch-depth: 1
           show-progress: false
-
-      - name: Initialize build environment and build
+          persist-credentials: false
+          
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}\packages
+          key: nuget-restore-${{ matrix.platform }}
+          
+      - name: Initialize environment and build
         shell: pwsh
         run: |
-          & "${{ github.workspace }}/.github/scripts/build-pr.ps1" `
-            -Flavor $env:PLATFORM_INIT_FLAVOR `
-            -Platform $env:PLATFORM_BUILD_PLATFORM `
-            -Configuration $env:PLATFORM_BUILD_CONFIGURATION
+          & "${{ github.workspace }}/.github/scripts/build-pr.ps1" -Flavor $env:PLATFORM_INIT_FLAVOR
 
       - name: Upload MSBuild binlogs
         if: failure()
@@ -84,5 +88,6 @@ jobs:
           name: platformsdk-product-${{ matrix.flavor }}
           path: |
             BuildOutput/packaging/${{ matrix.configuration }}/runtimes-framework/win-${{ matrix.platform }}/**
+            
           if-no-files-found: warn
           retention-days: 7

@@ -97,6 +97,12 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
       
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}\packages
+          key: nuget-restore-${{ matrix.platform }}
+          
       - name: Initialize environment and build
         shell: pwsh
         env:
